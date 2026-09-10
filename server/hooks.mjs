@@ -41,7 +41,10 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   const referenceTask = workflow === 'reference';
   const refs = referenceTask ? await localReferences(dataDir) : [];
   const context = [workbench];
-  if (!referenceTask) context.push(await read('generation-context.md'));
+  if (!referenceTask) {
+    context.push(await read('generation-context.md'));
+    context.push(`Optional synthesis notebook: ${path.join(root, 'resources/synthesis-notebook.md')}. Read for unfamiliar techniques or ambitious sound design; choose methods suited to this request.`);
+  }
   if (referenceTask) {
     context.push(await read('reference-context.md'));
     context.push(`Available reconstruction helper: ${path.join(root, 'resources/reference/analyse.py')}\nExisting local reference excerpts (check whether the source matches this task):\n${JSON.stringify(refs, null, 2)}`);
@@ -49,7 +52,7 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   context.push(await read('output-context.md'));
   return {
     text: `<studio_working_context>\n${context.join('\n\n')}\n</studio_working_context>`,
-    audit: { hook: 'beforeTurn', version: 3, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
+    audit: { hook: 'beforeTurn', version: 4, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
   };
 }
 

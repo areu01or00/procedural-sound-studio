@@ -80,7 +80,7 @@ Reference acquisition is still performed by the agent through its tool/approval 
 
 ## Output validation and repair
 
-The after-turn hook checks the declared files, parses the SVG, checks Python syntax without executing generated code, and streams through the WAV to check finite/non-silent audio. Browser-invisible custom event data without a visible score is rejected. A suspiciously short visible pattern against a longer arrangement is flagged for review. These checks run before the version becomes completed. A version with work on disk gets at most one automatic repair turn in the same conversation and directory. Missing/invalid artifacts after that fail explicitly; warnings remain recorded. Genuine no-output blockers are not turned into infinite repair loops.
+The after-turn hook checks the declared files, parses the SVG, checks Python syntax without executing generated code, and streams through the WAV to check finite/non-silent audio. Browser-invisible custom event data without a visible score is rejected. A suspiciously short visible pattern against a longer arrangement is flagged for review. These checks run before the version becomes completed. A version with structural errors and work on disk gets at most one automatic repair turn in the same conversation and directory. Missing/invalid artifacts after that fail explicitly; warnings remain recorded. Genuine no-output blockers are not turned into infinite repair loops.
 
 Each version records `output-check.json`; an automatic repair also records `output-repair.md`. `resources/output-context.md` instructs the composer to inspect its rendered SVG, match lanes/timelines/geometry to the sound, and preserve the WAV for visual-only fixes. The deterministic checks do not rasterize every SVG or establish musical quality; the agent remains responsible for visual inspection and semantic correspondence. Existing saved versions are not rewritten retroactively.
 
@@ -93,3 +93,10 @@ Provider and model choices persist in `.studio/settings.json`. A pasted OpenRout
 Verification: `npm test`, `./node_modules/.bin/electron test/settings-ui.cjs` (live catalog/UI, no inference), and `node test/provider-config.mjs` (installed protocol accepts custom-provider config, no inference). A successful OpenRouter paid inference still requires a real key and compatible chosen model.
 
 Provider configuration references: https://learn.chatgpt.com/docs/config-file/config-reference and https://openrouter.ai/docs/api_reference/responses/overview.
+
+
+## Creative workflow (hook v4)
+
+Generation guidance prioritizes timbral invention, multi-scale development and the requested ambition. It permits compact procedural scores and overview projections; it does not prescribe note density, a fixed form or instrument library. The optional `resources/synthesis-notebook.md` supplies techniques rather than one example song. Common context is deliberately short. The saved SVG remains authoritative.
+
+Advisory warnings are recorded without starting a repair turn. Structural errors still receive the existing bounded repair. Restart Studio to load code changes. Existing conversation history remains present, so a new project is useful for assessing the new guidance without earlier creative instructions. No model/provider preference is changed by this update.

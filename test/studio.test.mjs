@@ -34,7 +34,7 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
     const version = await (await post('generate',{prompt:'Twelve seconds of glass rain'})).json(); await tick();
     assert.equal((await post('generate',{prompt:'overlap'})).status,400);
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('<studio_working_context>'));
-    assert.ok((await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8')).includes('A pattern worth wanting back'));
+    assert.ok((await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8')).includes('no quick-demo requirement'));
     codex.emit('request',{id:7,method:'item/commandExecution/requestApproval',params:{command:'echo test'}});
     assert.equal((await (await fetch(url+'/api/state')).json()).approvals.length,1);
     await post('respond',{id:7,decision:'accept'}); assert.deepEqual(codex.replies[0],{id:7,result:{decision:'accept'}});
@@ -123,4 +123,20 @@ test('settings route new turns to the selected provider/model and retain provide
     assert.equal(third.threadId,first.threadId);assert.equal(third.model,'chosen-openai');
     assert.equal(codex.calls.filter(c=>c.method==='turn/start').at(-1).params.model,'chosen-openai');
   } finally {await app.close();await fs.rm(dir,{recursive:true,force:true});}
+});
+
+
+test('advisory score warnings publish without spending a repair turn', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-warning-')),codex=new FakeCodex();
+  const app=await createStudio({dataDir:dir,codex}),url=await app.listen();
+  try {
+    const v=await (await fetch(url+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'Create a patterned texture'})})).json();
+    await waitFor(url,'running'); await tick(); await deliver(path.join(dir,v.id));
+    await fs.writeFile(path.join(dir,v.id,'score.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><section t="0" d="90"/><rect data-role="tone" data-t="0" data-d="2" x="10" y="10" width="40" height="20"/><text x="10" y="50">Motif repeated across section</text></svg>');
+    codex.emit('notification',{method:'turn/completed',params:{threadId:'thread-test',turn:{id:'turn-test',status:'completed'}}});
+    const s=await waitFor(url,'completed');
+    assert.ok(s.versions[0].outputCheck.warnings.length);
+    assert.ok(s.versions[0].artifacts);
+    assert.equal(codex.calls.filter(c=>c.method==='turn/start').length,1);
+  } finally { await app.close(); await fs.rm(dir,{recursive:true,force:true}); }
 });

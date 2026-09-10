@@ -18,7 +18,9 @@ test('context hook retains source workflow across follow-ups and advertises real
     await fs.writeFile(path.join(ref, 'excerpt.json'), JSON.stringify({source_url:'https://youtu.be/example',source_start_seconds:375,source_end_seconds:425,focus_offset_seconds:20,duration_seconds:50}));
     const first = await beforeTurn({root, dataDir:dir, prompt:'Compose an original mechanical waltz'});
     assert.equal(first.audit.referenceWorkflow, false);
-    assert.ok(first.text.includes('A pattern worth wanting back'));
+    assert.ok(first.text.includes('no quick-demo requirement'));
+    assert.ok(first.text.includes('synthesis-notebook.md'));
+    assert.ok(first.text.length < 8500);
     assert.ok(first.text.includes('SVG browsers do not draw'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
     assert.equal(fresh.audit.referenceWorkflow,false);
@@ -40,7 +42,7 @@ test('generation hook follows the nearest task boundary and supplies composition
       const result = await beforeTurn({root,dataDir:dir,prompt,history:[source,creation]});
       assert.equal(result.audit.workflow,'generation');
       assert.ok(result.text.includes('one authoritative composition'));
-      assert.ok(result.text.includes('preserve and migrate every musical attribute'));
+      assert.ok(result.text.includes('preserve every musical parameter'));
       assert.ok(!result.text.includes('Available reconstruction helper:'));
     }
     const adjustment = await beforeTurn({root,dataDir:dir,prompt:'make the bass quieter',history:[source]});

@@ -69,7 +69,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
       await fs.writeFile(path.join(dir, 'output-check.json'), JSON.stringify(report, null, 2));
       const findings = [...report.issues, ...report.warnings];
       const hasWork = (await fs.readdir(dir)).some(f => /\.(svg|wav|py)$/.test(f));
-      if (findings.length && !v.repairAttempts && hasWork && !closing && !v.cancelRequested) {
+      if (report.issues.length && !v.repairAttempts && hasWork && !closing && !v.cancelRequested) {
         v.repairAttempts = 1; v.status = 'repairing';
         const text = `Studio output hook found delivery problems:\n${findings.map(x => '- '+x).join('\n')}\nRepair this same delivery directory: ${dir}. Preserve the existing composition and WAV for display-only fixes. Parse and visually inspect the saved SVG; browser-invisible custom event tags are not visible notation. Show the actual arrangement or an explicitly labeled pattern/repeat representation. Do not simplify or replace the music. Fix missing/invalid files and write result.json last. If a necessary input is unavailable, report the blocker rather than inventing a substitute. This is the single automatic repair pass.`;
         await fs.writeFile(path.join(dir, 'output-repair.md'), text);
@@ -141,7 +141,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         const context = await beforeTurn({ root: ROOT, dataDir, prompt: body.prompt, history: state.versions.filter(x => x.projectId === project.id && x !== v) });
         v.contextHook = context.audit;
         await fs.writeFile(path.join(dir, 'context.md'), context.text);
-        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nOptional reference: ${path.join(ROOT, "resources/glass_tide_example.py")} demonstrates a previously successful SVG-driven composition. Read it for techniques if useful, but invent a representation and sound appropriate to this request.\nCreate the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.`;
+        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nTechnique resources are linked in the working context. Choose the palette and form for this request; previous artifacts are references, not templates.\nCreate the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.`;
         const result = await codex.call('turn/start', { threadId: project.threadId, ...(v.model ? {model:v.model} : {}), input: [{ type: 'text', text }] });
         v.turnId = result.turn.id;
       } catch (e) { if (active === v) await finish('failed', e.message); }
