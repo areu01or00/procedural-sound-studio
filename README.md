@@ -1,3 +1,5 @@
+**Studio adaptation:** see [STUDIO.md](STUDIO.md) for the Codex-powered sound workshop, launch commands and validation.
+
 # AudioMass
 Free full-featured web-based audio &amp; waveform editing tool
 

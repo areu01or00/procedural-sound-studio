@@ -3,3 +3,7 @@
 *.aif
 *.aiff
 *.br
+node_modules/
+.studio/
+
+__pycache__/
