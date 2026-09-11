@@ -34,7 +34,8 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
     const version = await (await post('generate',{prompt:'Twelve seconds of glass rain'})).json(); await tick();
     assert.equal((await post('generate',{prompt:'overlap'})).status,400);
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('<studio_working_context>'));
-    assert.ok((await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8')).includes('no quick-demo requirement'));
+    assert.equal(await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8'), codex.calls.find(c=>c.method==='turn/start').params.input[0].text.split('\n\n<user_request>')[0]);
+    assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('resources/glass_tide_example.py'));
     codex.emit('request',{id:7,method:'item/commandExecution/requestApproval',params:{command:'echo test'}});
     assert.equal((await (await fetch(url+'/api/state')).json()).approvals.length,1);
     await post('respond',{id:7,decision:'accept'}); assert.deepEqual(codex.replies[0],{id:7,result:{decision:'accept'}});
@@ -137,6 +138,22 @@ test('advisory score warnings publish without spending a repair turn', async () 
     const s=await waitFor(url,'completed');
     assert.ok(s.versions[0].outputCheck.warnings.length);
     assert.ok(s.versions[0].artifacts);
+    assert.equal(codex.calls.filter(c=>c.method==='turn/start').length,1);
+  } finally { await app.close(); await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+
+test('no-artifact source blocker remains visible instead of a missing manifest error', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-blocker-')),codex=new FakeCodex();
+  const app=await createStudio({dataDir:dir,codex}),url=await app.listen();
+  try {
+    await fetch(url+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'Use a named recording'})});
+    await waitFor(url,'running'); await tick();
+    const message='Media fetch failed with HTTP 403; no usable audio acquired.';
+    codex.emit('notification',{method:'item/completed',params:{threadId:'thread-test',item:{type:'agentMessage',text:message}}});
+    codex.emit('notification',{method:'turn/completed',params:{threadId:'thread-test',turn:{id:'turn-test',status:'completed'}}});
+    const s=await waitFor(url,'failed');
+    assert.equal(s.versions[0].error,message);
     assert.equal(codex.calls.filter(c=>c.method==='turn/start').length,1);
   } finally { await app.close(); await fs.rm(dir,{recursive:true,force:true}); }
 });

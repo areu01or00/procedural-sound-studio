@@ -102,3 +102,19 @@ Generation guidance prioritizes timbral invention, multi-scale development and t
 Advisory warnings are recorded without starting a repair turn. Structural errors still receive the existing bounded repair. Restart Studio to load code changes. Existing conversation history remains present, so a new project is useful for assessing the new guidance without earlier creative instructions. No model/provider preference is changed by this update.
 
 Hook v5 adds an explicit melody-first drafting and revision pass for musical requests, while keeping nonmelodic sound design valid. It uses the first Sky as a technique lesson, not a compulsory theme/form. Diagnostic neutral-voice probes and the evidence boundary are in `experiment/melody-audit/REPORT.md`. This is a bounded within-turn creative process, not automatic indefinite retries or a musical-quality checker.
+
+
+## Current rollback: hook v6
+
+The v4/v5 creative prescriptions are no longer injected. `generation-context.md` and `synthesis-notebook.md` remain historical resources only; Studio does not advertise or load them. Shared context now covers task handling and evidence, with the original optional working code example restored. Base SVG/audio contract, reference routing, validation and settings remain active. The earlier v3–v5 descriptions above document prior iterations, not current creative guidance.
+
+Restart Studio for the changed hook. Existing model threads retain previously sent instructions; use a new project to evaluate this rollback without that history. No musical improvement is claimed from passing infrastructure tests.
+
+
+## Ad hoc research before musical work
+
+The shared before-turn context now requires online research tailored to each composition or musical edit, with concrete examples and source links recorded in notes.md. It gives no fixed musical recipe. Display-only repairs and conversation are exempt. It also explicitly directs edits to inspect SVG data and Python synthesis, extending both when existing controls are insufficient. This is a model instruction, not a deterministic web-access gate or proof of improved musical quality. The resource is read on each new user turn; this instruction-only change needs no restart.
+
+## Latest acceptance checkpoint
+
+[2026-09-11 — local minimum](checkpoints/2026-09-11-local-minimum.md): audio reconstruction works; modifications are not good enough; new sound generation is hit or miss; vocal reconstruction fails the user's acceptance criterion. No dependable musical-quality improvement is claimed.

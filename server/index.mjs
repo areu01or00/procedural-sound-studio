@@ -83,7 +83,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         return;
       }
       if (closing || v.cancelRequested) { status = 'interrupted'; error = 'Stopped during output validation'; }
-      else if (report.issues.length) { status = 'failed'; error = 'Output validation failed: '+report.issues.join(' '); }
+      else if (report.issues.length) { status = 'failed'; error = !hasWork ? (v.lastAgentMessage || 'No audio delivery was produced. See the conversation for the source blocker or response.') : 'Output validation failed: '+report.issues.join(' '); }
       else {
         v.artifacts = artifacts;
         if (!state.versions.some(x => x !== v && x.projectId === v.projectId && x.artifacts)) state.projects.find(p => p.id === v.projectId).title = artifacts.title;
@@ -110,6 +110,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
       active.log = (active.log + (p.delta || '')).slice(-60000);
       broadcast('log', { text: p.delta || '' });
     }
+    if (m.method === 'item/completed' && p.item?.type === 'agentMessage' && p.item.text) active.lastAgentMessage = p.item.text;
     if (m.method === 'item/started') broadcast('activity', { text: p.item?.command || p.item?.type || 'Working' });
     if (m.method === 'turn/started') active.turnId = p.turn.id;
     if (m.method === 'turn/completed' && (!active.turnId || !p.turn.id || p.turn.id === active.turnId)) void finish(p.turn.status, p.turn.error?.message);
@@ -141,7 +142,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         const context = await beforeTurn({ root: ROOT, dataDir, prompt: body.prompt, history: state.versions.filter(x => x.projectId === project.id && x !== v) });
         v.contextHook = context.audit;
         await fs.writeFile(path.join(dir, 'context.md'), context.text);
-        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nTechnique resources are linked in the working context. Choose the palette and form for this request; previous artifacts are references, not templates.\nCreate the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.`;
+        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nOptional working example: ${path.join(ROOT, "resources/glass_tide_example.py")} demonstrates SVG-driven synthesis. Read it if useful; compose for the current request.\nCreate the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.`;
         const result = await codex.call('turn/start', { threadId: project.threadId, ...(v.model ? {model:v.model} : {}), input: [{ type: 'text', text }] });
         v.turnId = result.turn.id;
       } catch (e) { if (active === v) await finish('failed', e.message); }

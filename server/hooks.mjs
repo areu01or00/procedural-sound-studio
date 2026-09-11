@@ -41,10 +41,9 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   const referenceTask = workflow === 'reference';
   const refs = referenceTask ? await localReferences(dataDir) : [];
   const context = [workbench];
-  if (!referenceTask) {
-    context.push(await read('generation-context.md'));
-    context.push(`Optional synthesis notebook: ${path.join(root, 'resources/synthesis-notebook.md')}. Read for unfamiliar techniques or ambitious sound design; choose methods suited to this request.`);
-  }
+  // A keyword classifier cannot recognize arbitrary song/artist names. Always
+  // expose the source workflow; routing only controls eager expansion.
+  context.push(`If the request uses an existing recording, including a song named without a URL, read ${path.join(root, 'resources/reference-context.md')} before acting. Resolve and acquire the actual source through your tools. The routing hint is not a determination that the request is original composition. Existing local inputs may be found under ${path.join(dataDir, 'references')}.`);
   if (referenceTask) {
     context.push(await read('reference-context.md'));
     context.push(`Available reconstruction helper: ${path.join(root, 'resources/reference/analyse.py')}\nExisting local reference excerpts (check whether the source matches this task):\n${JSON.stringify(refs, null, 2)}`);
@@ -52,7 +51,7 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   context.push(await read('output-context.md'));
   return {
     text: `<studio_working_context>\n${context.join('\n\n')}\n</studio_working_context>`,
-    audit: { hook: 'beforeTurn', version: 5, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
+    audit: { hook: 'beforeTurn', version: 7, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
   };
 }
 

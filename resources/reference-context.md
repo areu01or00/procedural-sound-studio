@@ -4,13 +4,15 @@ This turn or its project involves supplied source material. Do this workflow bef
 
 ## 1. Resolve the actual input
 
-Read the user's URL, local path and requested timestamps. Preserve the exact requested video or asset. If a usable local file is listed, verify it decodes and reuse it without asking the human to upload the same thing. If only a URL is available, try acquiring its audio with the existing venv's yt-dlp. Use argument-safe commands, a bounded download, no playlist, and a destination inside the new version directory. Do not inspect browser cookies or credentials as a workaround.
+Resolve the user's song/artist name, URL or local path and requested timestamps. A named-song edit is a source task even when no URL was provided; search for the matching source yourself before requesting an upload. Preserve the exact requested video or asset. If a usable local file is listed, verify it decodes and reuse it without asking the human to upload the same thing. If only a URL is available, try acquiring its audio with the existing venv's yt-dlp. Use argument-safe commands, a bounded download, no playlist, and a destination inside the new version directory. Do not inspect browser cookies or credentials as a workaround.
 
 Known working invocation in this workspace (replace placeholders, do not execute brackets literally):
 
     /home/x/Downloads/venv/bin/python -m yt_dlp --ignore-config --no-playlist -f bestaudio --max-filesize 200M --socket-timeout 20 --retries 1 -o '<delivery>/source.%(ext)s' '<video-url>'
 
 If that fails, read the actual error. DNS/permission failures inside the sandbox require a normal tool escalation through Studio's approval controls; they do not show the source is unavailable on the host. An obsolete downloader or extractor failure is distinct from a denied network request. Do not loop endlessly or bypass denied permission. Do not use titles, thumbnails, metadata, search snippets or a video summary as evidence of its sound.
+
+For a media HTTP 403 after successful metadata extraction, do not equate finding a webpage with obtaining audio, and do not treat an outdated-version warning as a proven cause. Inspect available formats and the extractor diagnostics. Check whether the selected format or client is the failing stage; try a bounded alternative supported by the installed downloader. If diagnostics establish an extractor/runtime issue, repair that dependency through normal permissions and retry. Never expose signed media URLs, browser cookies or credentials in your reply. One rejected media request does not establish that every source is unavailable. Check another matching publicly accessible source when appropriate; do not substitute a cover/remix silently or circumvent access controls. Stop only with concrete attempted-source/error evidence when permitted approaches fail. Keep partial files separate and verify nonzero decodable audio before proceeding.
 
 For precise excerpts, decode a locally downloaded source and trim with FFmpeg. Our previous `yt-dlp --download-sections` request for 6:15–7:05 produced 54.97 seconds because of container/packet boundaries. It silently shifted the intended focus. Full-source decoding followed by output trimming fixed that. Example:
 

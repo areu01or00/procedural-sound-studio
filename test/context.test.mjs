@@ -18,13 +18,8 @@ test('context hook retains source workflow across follow-ups and advertises real
     await fs.writeFile(path.join(ref, 'excerpt.json'), JSON.stringify({source_url:'https://youtu.be/example',source_start_seconds:375,source_end_seconds:425,focus_offset_seconds:20,duration_seconds:50}));
     const first = await beforeTurn({root, dataDir:dir, prompt:'Compose an original mechanical waltz'});
     assert.equal(first.audit.referenceWorkflow, false);
-    assert.ok(first.text.includes('no quick-demo requirement'));
-    assert.ok(first.text.includes('synthesis-notebook.md'));
-    assert.ok(first.text.includes('melodic composition its own pass'));
-    assert.ok(first.text.includes('no compulsory hook'));
-    assert.ok(first.text.includes('nonmusical sound design'));
-    assert.ok(first.text.length < 10000);
-    assert.ok(first.text.includes('SVG browsers do not draw'));
+    assert.ok(!first.text.includes(await fs.readFile(path.join(root,'resources/generation-context.md'),'utf8')));
+    assert.ok(!first.text.includes('synthesis-notebook.md'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
     assert.equal(fresh.audit.referenceWorkflow,false);
     const next = await beforeTurn({root, dataDir:dir, prompt:'continue', history:[{prompt:'Mod https://youtu.be/example at 6:35'}]});
@@ -36,7 +31,7 @@ test('context hook retains source workflow across follow-ups and advertises real
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
-test('generation hook follows the nearest task boundary and supplies composition authority', async () => {
+test('context routing follows the nearest task boundary', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-routing-'));
   try {
     const source = {prompt:'Reconstruct https://youtu.be/example'};
@@ -44,8 +39,6 @@ test('generation hook follows the nearest task boundary and supplies composition
     for (const prompt of ['continue', 'the SVG is empty', 'make the bass quieter']) {
       const result = await beforeTurn({root,dataDir:dir,prompt,history:[source,creation]});
       assert.equal(result.audit.workflow,'generation');
-      assert.ok(result.text.includes('one authoritative composition'));
-      assert.ok(result.text.includes('preserve every musical parameter'));
       assert.ok(!result.text.includes('Available reconstruction helper:'));
     }
     const adjustment = await beforeTurn({root,dataDir:dir,prompt:'make the bass quieter',history:[source]});
@@ -81,4 +74,12 @@ assert np.allclose(a,before*10**(-6/20),atol=2e-7)
 assert not np.array_equal(a,before)`,dir]);
     assert.ok(Math.abs(Number(stdout.trim()) - 10**(-6/20)) < 1e-6);
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+
+test('named-song requests always receive access to the source workflow', async () => {
+  const result = await beforeTurn({root,dataDir:'/tmp/studio-input-test',prompt:'Use Rasputin by Boney M and enhance the chorus drop for reels'});
+  assert.ok(result.text.includes(path.join(root,'resources/reference-context.md')));
+  const followup = await beforeTurn({root,dataDir:'/tmp/studio-input-test',prompt:'search it and get it',history:[{prompt:'Use Rasputin by Boney M',contextHook:{workflow:'generation'}}]});
+  assert.ok(followup.text.includes(path.join(root,'resources/reference-context.md')));
 });
