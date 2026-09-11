@@ -20,7 +20,10 @@ test('context hook retains source workflow across follow-ups and advertises real
     assert.equal(first.audit.referenceWorkflow, false);
     assert.ok(first.text.includes('no quick-demo requirement'));
     assert.ok(first.text.includes('synthesis-notebook.md'));
-    assert.ok(first.text.length < 8500);
+    assert.ok(first.text.includes('melodic composition its own pass'));
+    assert.ok(first.text.includes('no compulsory hook'));
+    assert.ok(first.text.includes('nonmusical sound design'));
+    assert.ok(first.text.length < 10000);
     assert.ok(first.text.includes('SVG browsers do not draw'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
     assert.equal(fresh.audit.referenceWorkflow,false);

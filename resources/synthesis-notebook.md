@@ -24,3 +24,10 @@ Use separate dry/wet routing and distinct spatial roles. Early reflections sugge
 ## Iterate efficiently
 
 Probe the hardest timbre or densest phrase first when it will resolve uncertainty. Reuse computed instrument kernels or vectorized operations where appropriate, while preserving expressive variation. Retain the generator and editable SVG controls so revisions develop the piece rather than reconstructing it from prose. Never equate note count, code size, peak/RMS or a rendered spectrogram with listening approval.
+
+
+## Melody: what the first Sky example teaches
+
+The Machine Remembers the Sky introduces a seven-note phrase, repeats its timing and contour, then transfers it from bell to reed with an answering line and changing harmonic color. Its identity spans a phrase, rather than being independently chosen at every note. This is a technique example, not a tune to copy or a required arrangement.
+
+Write rhythm and contour together. Decide where a phrase leans forward, pauses, reaches an apex and lands. Maintain voice-leading across harmony changes; a repeated motif can retain notes while the chord beneath it changes. Use chromatic tension purposefully, not merely because a palette is called adventurous. An answer can share a rhythmic fingerprint while completing the original gesture. Before adding counterpoint, establish which line the listener should follow; give its companions meaningful replies rather than permanent equal-priority activity. Keep dense backgrounds alive while briefly reserving attacks/register for the theme.

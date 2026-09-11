@@ -52,7 +52,7 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   context.push(await read('output-context.md'));
   return {
     text: `<studio_working_context>\n${context.join('\n\n')}\n</studio_working_context>`,
-    audit: { hook: 'beforeTurn', version: 4, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
+    audit: { hook: 'beforeTurn', version: 5, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
   };
 }
 
