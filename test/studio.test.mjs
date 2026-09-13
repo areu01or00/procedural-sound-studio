@@ -36,12 +36,15 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('<studio_working_context>'));
     assert.equal(await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8'), codex.calls.find(c=>c.method==='turn/start').params.input[0].text.split('\n\n<user_request>')[0]);
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('resources/glass_tide_example.py'));
+    codex.emit('notification',{method:'item/completed',params:{threadId:'thread-test',item:{type:'webSearch',id:'search-observed',status:'completed',action:{type:'search',query:'glass resonance'}}}});
     codex.emit('request',{id:7,method:'item/commandExecution/requestApproval',params:{command:'echo test'}});
     assert.equal((await (await fetch(url+'/api/state')).json()).approvals.length,1);
     await post('respond',{id:7,decision:'accept'}); assert.deepEqual(codex.replies[0],{id:7,result:{decision:'accept'}});
     await deliver(path.join(dir,version.id));
     codex.emit('notification',{method:'turn/completed',params:{threadId:'thread-test',turn:{status:'completed'}}}); await waitFor(url,'completed');
     let state = await (await fetch(url+'/api/state')).json(); assert.equal(state.versions[0].status,'completed');
+    const evidence=JSON.parse((await fs.readFile(path.join(dir,version.id,'research-events.jsonl'),'utf8')).trim());
+    assert.equal(evidence.itemId,'search-observed');assert.equal(evidence.result,null);
     assert.equal((await fetch(url+`/asset/${version.id}/audio`)).headers.get('content-type'),'audio/wav');
     assert.equal((await fetch(url+`/asset/${version.id}/svg`)).headers.get('content-security-policy').includes('sandbox'),true);
     const next = await (await post('generate',{projectId:version.projectId,prompt:'Give it a thunderous ending'})).json(); await tick();

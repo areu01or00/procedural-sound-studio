@@ -10,6 +10,7 @@ const run = promisify(execFile);
 import { Codex } from './codex.mjs';
 import { beforeTurn, afterTurn } from './hooks.mjs';
 import { createSettings } from './settings.mjs';
+import { researchEvent } from './research.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const mime = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.svg':'image/svg+xml', '.wav':'audio/wav', '.mp3':'audio/mpeg', '.png':'image/png', '.ico':'image/x-icon', '.json':'application/json' };
@@ -106,6 +107,13 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
   codex.on('notification', m => {
     const p = m.params || {};
     if (!active || (p.threadId && p.threadId !== active.threadId)) return;
+    const evidence = researchEvent(m);
+    if (evidence) {
+      const evidencePath = path.join(dataDir, active.id, 'research-events.jsonl');
+      saving = saving.then(() => fs.appendFile(evidencePath, JSON.stringify(evidence) + '\n')).catch(error => {
+        broadcast('log', {text: `Research evidence could not be saved: ${error.message}\n`});
+      });
+    }
     if (m.method === 'item/agentMessage/delta' || m.method === 'item/commandExecution/outputDelta') {
       active.log = (active.log + (p.delta || '')).slice(-60000);
       broadcast('log', { text: p.delta || '' });

@@ -41,7 +41,14 @@ export async function createSettings(dataDir, codex, {fetcher = fetch} = {}) {
       if (body.provider === 'openrouter' && !nextKey) throw new Error('Paste an OpenRouter API key');
       const next = {...value,provider:body.provider,[body.provider==='default'?'openaiModel':'openrouterModel']:model};
       if (body.provider === 'openrouter') next.openrouterInferenceProviders = {...value.openrouterInferenceProviders,[model]:inferenceProvider};
-      if (nextKey !== key) { await codex.configureEnvironment({OPENROUTER_API_KEY:nextKey}); catalog = undefined; key = nextKey; }
+      // Clearing Studio's loaded set alone does not unload app-server threads.
+      // Resume of an already-live thread may retain its original provider URL.
+      // Restart our idle child when routing changes, then resume saved history.
+      const route = v => v.provider === 'openrouter'
+        ? `openrouter:${v.openrouterInferenceProviders?.[v.openrouterModel] || 'automatic'}` : 'default';
+      if (nextKey !== key || route(next) !== route(value)) {
+        await codex.configureEnvironment({OPENROUTER_API_KEY:nextKey}); catalog = undefined; key = nextKey;
+      }
       await fs.writeFile(file+'.tmp', JSON.stringify(next,null,2), {mode:0o600}); await fs.rename(file+'.tmp',file);
       value = next; return publicValue();
     },

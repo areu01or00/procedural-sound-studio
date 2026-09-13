@@ -126,3 +126,11 @@ Settings now loads the selected model's available endpoints from OpenRouter's mo
 For pinned requests, a local authenticated fixed-destination Responses relay adds provider routing while preserving streaming/tool-call responses. Automatic and default Codex requests keep their existing direct paths. Settings changes refresh thread configuration on the next turn. Keys remain session-only. Restart Studio to load the update.
 
 References: https://openrouter.ai/docs/api/api-reference/endpoints/list-all-endpoints-for-a-model and https://openrouter.ai/docs/guides/routing/provider-selection .
+
+## Research and routing reliability (hook v8)
+
+Changing the effective provider route restarts the idle Studio-owned app-server before resuming saved history. Clearing the UI server's loaded-thread cache alone does not replace a live app-server thread's endpoint. Active tasks still prevent settings changes.
+
+The research hook supplies correct whole-result emission and bounded, permission-aware recovery without changing the musical instructions. Actual retrieved excerpts belong in the version's `research/` directory with provenance; notes alone are not proof. Studio retains exposed web-tool completion events in `research-events.jsonl`. Events without source text and hidden nested tool results are not certified retrieval. This adds no audio validation gate or creative restrictions.
+
+Restart Studio to activate. See [the implementation checkpoint](checkpoints/2026-09-13-reliability-fixes.md) for validation, limitations and the correction to the initial audit. Future commits must include a motivation and evidence checkpoint as specified in `AGENTS.md`.

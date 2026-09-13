@@ -25,8 +25,15 @@ test('endpoint discovery validates model IDs and uses live endpoint tags',async(
 test('provider selection is per-model, resumes config, pins streamed requests and requires auth',async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-routing-'));
   class Fake extends EventEmitter {
-    calls=[]; async start(){} async configureEnvironment(){}
-    async call(method,params){this.calls.push({method,params});return method.startsWith('thread/')?{thread:{id:'t'}}:{turn:{id:'u'}};}
+    calls=[]; restarts=0; liveConfig=null;
+    async start(){}
+    async configureEnvironment(){this.restarts++;this.liveConfig=null;this.emit('disconnect','test child restart');}
+    async call(method,params){
+      this.calls.push({method,params});
+      // Model app-server's live-thread behavior: resume does not replace live config.
+      if(method.startsWith('thread/')) this.liveConfig ||= params.config;
+      return method.startsWith('thread/')?{thread:{id:'t'}}:{turn:{id:'u'}};
+    }
     close(){}
   }
   const codex=new Fake(),sent=[];
@@ -53,10 +60,22 @@ test('provider selection is per-model, resumes config, pins streamed requests an
     assert.equal(sent[0].url,'https://openrouter.ai/api/v1/responses');
     await post('cancel',{});codex.emit('notification',{method:'turn/completed',params:{threadId:'t',turn:{id:'u',status:'interrupted'}}});
     await new Promise(r=>setTimeout(r,50));
+    const restarts=codex.restarts;
+    await post('settings',{provider:'openrouter',model:'vendor/model',inferenceProvider:'fireworks'});
+    assert.equal(codex.restarts,restarts+1);
+    await post('generate',{projectId:v.projectId,prompt:'Switch the route, keep this conversation'});await ready();
+    assert.equal(codex.liveConfig['model_providers.studio_openrouter'].base_url,url+'/openrouter/fireworks');
+    const routed=await fetch(codex.liveConfig['model_providers.studio_openrouter'].base_url+'/responses',{method:'POST',headers:{Authorization:'Bearer test-key'},body:JSON.stringify(request)});
+    assert.equal(routed.status,200);await routed.text();
+    assert.deepEqual(sent.at(-1).body.provider,{only:['fireworks'],allow_fallbacks:false});
+    assert.equal((await fetch(config.base_url+'/responses',{method:'POST',body:JSON.stringify(request)})).status,409);
+    await post('cancel',{});codex.emit('notification',{method:'turn/completed',params:{threadId:'t',turn:{id:'u',status:'interrupted'}}});
+    await new Promise(r=>setTimeout(r,50));
     await post('settings',{provider:'openrouter',model:'vendor/other'});
-    const saved=await fetch(url+'/api/settings').then(r=>r.json());assert.equal(saved.openrouterInferenceProviders['vendor/model'],'nova/fast');
+    const saved=await fetch(url+'/api/settings').then(r=>r.json());assert.equal(saved.openrouterInferenceProviders['vendor/model'],'fireworks');
     await post('generate',{projectId:v.projectId,prompt:'Again'});await ready();
-    const resumed=codex.calls.find(c=>c.method==='thread/resume');assert.equal(resumed.params.config['model_providers.studio_openrouter'].base_url,'https://openrouter.ai/api/v1');
+    const resumed=codex.calls.filter(c=>c.method==='thread/resume').at(-1);assert.equal(resumed.params.config['model_providers.studio_openrouter'].base_url,'https://openrouter.ai/api/v1');
+    assert.equal(codex.liveConfig['model_providers.studio_openrouter'].base_url,'https://openrouter.ai/api/v1');
     assert.ok(!(await fs.readFile(path.join(dir,'settings.json'),'utf8')).includes('test-key'));
   } finally {await app.close();await fs.rm(dir,{recursive:true,force:true});}
 });
