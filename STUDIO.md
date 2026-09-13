@@ -118,3 +118,11 @@ The shared before-turn context now requires online research tailored to each com
 ## Latest acceptance checkpoint
 
 [2026-09-11 — local minimum](checkpoints/2026-09-11-local-minimum.md): audio reconstruction works; modifications are not good enough; new sound generation is hit or miss; vocal reconstruction fails the user's acceptance criterion. No dependable musical-quality improvement is claimed.
+
+## OpenRouter inference provider selection
+
+Settings now loads the selected model's available endpoints from OpenRouter's model-endpoints API. Automatic preserves OpenRouter routing; an explicit endpoint is remembered per model and sent as `provider.only` with `allow_fallbacks:false`. Endpoint availability is checked on save. Unavailable/failed lookups are shown rather than silently replacing saved selections.
+
+For pinned requests, a local authenticated fixed-destination Responses relay adds provider routing while preserving streaming/tool-call responses. Automatic and default Codex requests keep their existing direct paths. Settings changes refresh thread configuration on the next turn. Keys remain session-only. Restart Studio to load the update.
+
+References: https://openrouter.ai/docs/api/api-reference/endpoints/list-all-endpoints-for-a-model and https://openrouter.ai/docs/guides/routing/provider-selection .

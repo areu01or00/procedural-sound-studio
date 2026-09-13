@@ -80,11 +80,41 @@ $('editor').addEventListener('load', loadLatest);
 if ($('editor').contentWindow.PKAudioEditor?.engine) loadLatest();
 
 // Provider settings are independent of sound versions. Never put keys in storage.
+let providerRequest = 0, providerTimer, savedInferenceProviders = {};
+async function loadInferenceProviders() {
+  const request = ++providerRequest, model = $('openrouter-model').value.trim();
+  const select = $('inference-provider');
+  select.replaceChildren(new Option('Automatic — OpenRouter routing',''));
+  select.disabled = true;
+  $('inference-status').textContent = model ? 'Loading available providers…' : 'Enter a model ID to load providers.';
+  if (!model) return;
+  try {
+    const {providers} = await api('openrouter/providers?model='+encodeURIComponent(model));
+    if (request !== providerRequest) return;
+    select.replaceChildren(new Option('Automatic — OpenRouter routing',''), ...providers.map(p=>new Option(p.name+' · '+p.id,p.id)));
+    const saved = savedInferenceProviders[model] || '';
+    if (saved && !providers.some(p=>p.id===saved)) select.add(new Option(saved+' (unavailable)',saved));
+    select.value = saved;
+    $('inference-status').textContent = 'A selected provider is pinned; unavailable providers will not silently fall back.';
+  } catch(e) {
+    if (request !== providerRequest) return;
+    const saved = savedInferenceProviders[model];
+    if (saved) { select.add(new Option(saved+' (not verified)',saved)); select.value=saved; }
+    $('inference-status').textContent = e.message+' — retry by editing the model ID.';
+  } finally { if (request === providerRequest) select.disabled = false; }
+}
+$('openrouter-model').oninput = () => {
+  ++providerRequest; clearTimeout(providerTimer);
+  $('inference-provider').replaceChildren(new Option('Automatic — OpenRouter routing',''));
+  $('inference-provider').disabled = true;
+  providerTimer = setTimeout(loadInferenceProviders,400);
+};
+$('inference-provider').onchange = () => { savedInferenceProviders[$('openrouter-model').value.trim()] = $('inference-provider').value; };
 function showProviderFields() {
   const router = $('provider').value === 'openrouter';
   $('openai-fields').hidden = router; $('openrouter-fields').hidden = !router;
 }
-$('provider').onchange = showProviderFields;
+$('provider').onchange = () => { showProviderFields(); if ($('provider').value==='openrouter') void loadInferenceProviders(); };
 $('settings-close').onclick = () => $('settings-dialog').close();
 $('settings-dialog').addEventListener('close', () => { $('openrouter-key').value = ''; });
 $('settings').onclick = async () => {
@@ -94,7 +124,9 @@ $('settings').onclick = async () => {
     const current = await api('settings');
     $('provider').value = current.provider; $('openrouter-model').value = current.openrouterModel || '';
     $('openrouter-key').value = ''; $('openrouter-key').placeholder = current.hasOpenRouterKey ? 'Key set for this session — leave blank to keep' : 'Paste API key';
+    savedInferenceProviders = {...current.openrouterInferenceProviders};
     showProviderFields();
+    void loadInferenceProviders();
     $('openai-model').replaceChildren(new Option('Configured default',''));
     if(current.openaiModel) $('openai-model').add(new Option(current.openaiModel,current.openaiModel));
     $('openai-model').value = current.openaiModel || '';
@@ -112,7 +144,7 @@ $('settings-form').onsubmit = async e => {
   e.preventDefault(); $('settings-save').disabled = true; $('settings-error').textContent = '';
   try {
     const router = $('provider').value === 'openrouter';
-    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined});
+    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined,inferenceProvider:router?(savedInferenceProviders[$('openrouter-model').value.trim()] || ''):undefined});
     $('settings-dialog').close();
     $('activity').textContent = 'Next turn: '+(saved.provider==='default'?'Codex · '+(saved.openaiModel||'configured default'):'OpenRouter · '+saved.openrouterModel);
   } catch(e) { $('settings-error').textContent = e.message; }

@@ -40,9 +40,9 @@ export async function validateResult(dir) {
   out.duration = Number(info.format.duration); out.sampleRate = Number(stream.sample_rate); out.channels = stream.channels;
   return out;
 }
-export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex = new Codex() } = {}) {
+export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex = new Codex(), fetcher = fetch } = {}) {
   await fs.mkdir(dataDir, { recursive: true });
-  const settings = await createSettings(dataDir, codex);
+  const settings = await createSettings(dataDir, codex, {fetcher});
   let settingsBusy = false;
   const statePath = path.join(dataDir, 'state.json');
   let state;
@@ -128,8 +128,8 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
     void (async () => {
       try {
         await codex.start();
-        const choice = await settings.selection();
-        v.provider = choice.provider; v.model = choice.model;
+        const choice = await settings.selection(`http://127.0.0.1:${server.address().port}`);
+        v.provider = choice.provider; v.model = choice.model; v.inferenceProvider = choice.inferenceProvider || null;
         project.threads ||= {default:project.threadId};
         const threadId = project.threads[choice.provider];
         const config = { cwd: dataDir, sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', developerInstructions: instructions, ...choice.threadConfig };
@@ -157,6 +157,12 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
       if (req.headers.host !== expected) return json(403, { error: 'Invalid host' });
       if (req.headers.origin && req.headers.origin !== `http://${expected}`) return json(403, { error: 'Invalid origin' });
       const url = new URL(req.url, `http://${expected}`);
+      if (req.method === 'POST' && /^\/openrouter\/[^/]+\/responses$/.test(url.pathname)) {
+        const provider = decodeURIComponent(url.pathname.split('/')[2]);
+        if (!active || active.provider !== 'openrouter' || active.inferenceProvider !== provider) return json(409,{error:'No matching active provider turn'});
+        return await settings.relay(req,res,provider);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/openrouter/providers') return json(200,{providers:await settings.providers(url.searchParams.get('model') || '')});
       if (req.method === 'GET' && url.pathname === '/api/settings') return json(200, settings.publicValue());
       if (req.method === 'GET' && url.pathname === '/api/models') return json(200, {models:await settings.models()});
       if (req.method === 'GET' && url.pathname === '/api/state') return json(200, { ...state, approvals: [...approvals.values()] });
@@ -173,7 +179,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         if (url.pathname === '/api/settings') {
           if (active || settingsBusy) return json(409, {error:'Wait for the current turn before changing provider settings'});
           settingsBusy = true;
-          try { return json(200, await settings.save(body)); } finally { settingsBusy = false; }
+          try { const saved = await settings.save(body); loaded.clear(); return json(200, saved); } finally { settingsBusy = false; }
         }
         if (url.pathname === '/api/generate') return json(202, await generate(body));
         if (url.pathname === '/api/cancel') {
