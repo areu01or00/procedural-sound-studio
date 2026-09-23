@@ -4,7 +4,7 @@ import path from 'node:path';
 
 export async function createSettings(dataDir, codex, {fetcher = fetch} = {}) {
   const file = path.join(dataDir, 'settings.json');
-  let value = {provider:'default',openaiModel:'',openrouterModel:'',openrouterInferenceProviders:{}};
+  let value = {provider:'default',openaiModel:'',openrouterModel:'',claudeModel:'',openrouterInferenceProviders:{}};
   try { value = {...value,...JSON.parse(await fs.readFile(file,'utf8'))}; }
   catch(e) { if(e.code!=='ENOENT') throw e; }
   // Credentials are session-only and are never put in state, prompts or config JSON.
@@ -26,9 +26,9 @@ export async function createSettings(dataDir, codex, {fetcher = fetch} = {}) {
     providers: model => modelProviders(model,fetcher),
     relay: (req,res,provider) => relay(req,res,{key,provider,fetcher}),
     async save(body) {
-      if (!['default','openrouter'].includes(body.provider)) throw new Error('Unknown provider');
+      if (!['default','openrouter','claude'].includes(body.provider)) throw new Error('Unknown provider');
       const model = String(body.model || '').trim();
-      if (model.length > 200 || (model && !/^[a-zA-Z0-9][a-zA-Z0-9_./:@+-]*$/.test(model))) throw new Error('Invalid model ID');
+      if (model.length > 200 || (model && !/^[a-zA-Z0-9][a-zA-Z0-9_./:@+\[\]-]*$/.test(model))) throw new Error('Invalid model ID');
       if (body.provider === 'openrouter' && !model) throw new Error('Paste an OpenRouter model ID');
       const inferenceProvider = String(body.inferenceProvider || '').trim();
       if (body.provider === 'openrouter' && inferenceProvider && !(await modelProviders(model,fetcher)).some(p=>p.id===inferenceProvider)) throw new Error('This inference provider is unavailable for the selected model');
@@ -39,7 +39,7 @@ export async function createSettings(dataDir, codex, {fetcher = fetch} = {}) {
         nextKey = body.apiKey.trim();
       }
       if (body.provider === 'openrouter' && !nextKey) throw new Error('Paste an OpenRouter API key');
-      const next = {...value,provider:body.provider,[body.provider==='default'?'openaiModel':'openrouterModel']:model};
+      const next = {...value,provider:body.provider,[{default:'openaiModel',openrouter:'openrouterModel',claude:'claudeModel'}[body.provider]]:model};
       if (body.provider === 'openrouter') next.openrouterInferenceProviders = {...value.openrouterInferenceProviders,[model]:inferenceProvider};
       // Clearing Studio's loaded set alone does not unload app-server threads.
       // Resume of an already-live thread may retain its original provider URL.
@@ -59,6 +59,8 @@ export async function createSettings(dataDir, codex, {fetcher = fetch} = {}) {
         if (inferenceProvider && !origin) throw new Error('Studio must be listening before provider routing');
         return {provider:'openrouter',inferenceProvider,model:value.openrouterModel,threadConfig:{modelProvider:'studio_openrouter',model:value.openrouterModel,config:{'model_providers.studio_openrouter':{name:'OpenRouter',base_url:inferenceProvider ? `${origin}/openrouter/${encodeURIComponent(inferenceProvider)}` : 'https://openrouter.ai/api/v1',env_key:'OPENROUTER_API_KEY',wire_api:'responses',requires_openai_auth:false,supports_websockets:false}}}};
       }
+      // Claude runs through the Agent SDK on the local Claude Code login, not through Codex.
+      if(value.provider==='claude') return {provider:'claude',model:value.claudeModel || null,threadConfig:value.claudeModel ? {model:value.claudeModel} : {}};
       const model = value.openaiModel || (await models()).find(m=>m.isDefault)?.id || null;
       return {provider:'default',model,threadConfig:{modelProvider:'openai',...(model ? {model} : {})}};
     }

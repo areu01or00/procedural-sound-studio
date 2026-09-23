@@ -16,7 +16,7 @@ class FakeCodex extends EventEmitter {
 async function deliver(dir) {
   const wav = Buffer.alloc(1644); wav.write('RIFF'); wav.writeUInt32LE(1636,4); wav.write('WAVEfmt ',8); wav.writeUInt32LE(16,16); wav.writeUInt16LE(1,20); wav.writeUInt16LE(1,22); wav.writeUInt32LE(8000,24); wav.writeUInt32LE(16000,28); wav.writeUInt16LE(2,32); wav.writeUInt16LE(16,34); wav.write('data',36); wav.writeUInt32LE(1600,40);
   for (let i=0;i<800;i++) wav.writeInt16LE(Math.round(5000*Math.sin(2*Math.PI*440*i/8000)),44+i*2);
-  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path data-role="tone" d="M10 50L90 50" stroke="blue"/></svg>','render.py':'# renderer','notes.md':'Design notes','result.json':JSON.stringify({title:'Test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
+  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path data-role="tone" d="M10 50L90 50" stroke="blue"/></svg>','render.py':'from pathlib import Path\nimport xml.etree.ElementTree as ET\nr=ET.parse(Path(__file__).with_name("score.svg"))\nfor z in r.iter():\n    if z.tag.endswith("path"): gesture=z.get("d")\n','notes.md':'Design notes','result.json':JSON.stringify({title:'Test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 40));
 async function waitFor(url, status) {
@@ -28,7 +28,7 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
   const app = await createStudio({dataDir:dir,codex}); const url = await app.listen();
   const post = (route, body) => fetch(url+'/api/'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   try {
-    assert.equal((await fetch(url)).status,200);
+    const home=await fetch(url); assert.equal(home.status,200); assert.ok((await home.text()).includes('painting-mode'));
     assert.equal((await fetch(url+'/editor/')).status,200);
     assert.equal((await fetch(url+'/api/state',{headers:{Origin:'https://attacker.example'}})).status,403);
     const version = await (await post('generate',{prompt:'Twelve seconds of glass rain'})).json(); await tick();
@@ -114,7 +114,7 @@ test('settings route new turns to the selected provider/model and retain provide
   const stop=async()=>{ const s=await waitFor(url,'running');await tick();codex.emit('notification',{method:'turn/completed',params:{threadId:s.versions.at(-1).threadId,turn:{id:'turn-test',status:'interrupted'}}});await waitFor(url,'interrupted');return s.versions.at(-1); };
   try {
     const initial=await (await post('generate',{prompt:'First'})).json();
-    await waitFor(url,'running');
+    await waitFor(url,'running'); await tick();
     assert.equal((await post('settings',{provider:'default',model:'other'})).status,409);
     const first=await stop();assert.equal(first.model,'openai-default');
     assert.equal((await post('settings',{provider:'openrouter',model:'vendor/model',apiKey:'not-a-real-key'})).status,200);
@@ -159,4 +159,20 @@ test('no-artifact source blocker remains visible instead of a missing manifest e
     assert.equal(s.versions[0].error,message);
     assert.equal(codex.calls.filter(c=>c.method==='turn/start').length,1);
   } finally { await app.close(); await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+test('painting generation ingests and measures an image before starting an isolated painter thread', async () => {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-painting-http-')),codex=new FakeCodex();
+  const app=await createStudio({dataDir:dir,codex}),url=await app.listen();
+  try {
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    const v=await (await fetch(url+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'Repaint this tiny source',mode:'painting',image})})).json();
+    await waitFor(url,'running'); await tick();
+    const analysis=JSON.parse(await fs.readFile(path.join(dir,v.id,'analysis.json')));
+    assert.equal(analysis.width,1); assert.equal(analysis.height,1);
+    const start=codex.calls.find(c=>c.method==='thread/start'); assert.ok(start.params.developerInstructions.includes('painter inside Studio'));
+    const turn=codex.calls.find(c=>c.method==='turn/start'); assert.ok(turn.params.input[0].text.includes('<studio_painting_context>')); assert.ok(turn.params.input[0].text.includes('painting.png'));
+    await fetch(url+'/api/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    codex.emit('notification',{method:'turn/completed',params:{threadId:'thread-test',turn:{id:'turn-test',status:'interrupted'}}}); await waitFor(url,'interrupted');
+  } finally {await app.close();await fs.rm(dir,{recursive:true,force:true});}
 });

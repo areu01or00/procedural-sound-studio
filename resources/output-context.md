@@ -2,7 +2,7 @@
 
 Deliver score.svg, its paired render.py, audio.wav, notes.md and result.json in the assigned independent directory. Write the manifest last. Keep necessary dependencies local. The renderer must consume the saved score. Preserve prior versions.
 
-Use valid passive SVG with visible marks or an accurate preview, valid viewport and consistent labels/mapping. SVG browsers do not draw custom event tags; data in metadata can have a separate readable projection. Compact patterns with a labeled schedule are valid. An overview need not expose every sample or event.
+Use valid passive SVG with visible marks, valid viewport and consistent labels/mapping. SVG browsers do not draw custom event tags. For source reconstruction, dense spectral data in metadata may use a separate accurate preview. For original composition, follow the visible-score provenance contract: a preview, motif bank or compact schedule cannot substitute for the complete audible arrangement in rendered SVG marks.
 
 Parse the XML and check saved audio duration, finite samples and headroom. For new synthesis, confirm the renderer can reproduce the saved composition. For visual-only changes compare decoded samples against the prior audio; keep sound unchanged. Musical edits should change the intended region. Numerical checks cannot establish artistic quality.
 

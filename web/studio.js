@@ -1,16 +1,32 @@
 const $ = id => document.getElementById(id);
-let state = { projects: [], versions: [] }, projectId = '', selected = '', busy = false, selectionSerial = 0;
+let state = { projects: [], versions: [] }, projectId = '', selected = '', busy = false, selectionSerial = 0, mode = 'sound', processView = 'process';
 async function api(route, body) {
   const r = await fetch('/api/' + route, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await r.json(); if (!r.ok) throw new Error(data.error); return data;
 }
 function error(e) { $('activity').textContent = e.message; }
 function button(text, action) { const b = document.createElement('button'); b.textContent = text; b.onclick = () => Promise.resolve().then(action).catch(error); return b; }
+function setMode(next, reset=true) {
+  mode=next; if(reset){projectId=''; selected='';}
+  const painting=mode==='painting';
+  $('sound-mode').classList.toggle('active',!painting); $('painting-mode').classList.toggle('active',painting);
+  $('workshop').textContent=painting?'/ PAINTING WORKSHOP':'/ SOUND WORKSHOP';
+  $('new').textContent=painting?'New painting':'New sound'; $('image-field').hidden=!painting || Boolean(projectId);
+  $('editor').hidden=painting; $('painting-view').hidden=!painting;
+  $('title').textContent=painting?'What should the canvas become?':'What does your idea sound like?';
+  $('compose-hint').textContent=painting?'Describe an image, attach a source, then develop it through conversation.':'Describe a sound. Develop it through conversation.';
+  $('collection-hint').textContent=painting?'Each version keeps its final image, executable SVG, renderer and process film.':'Each version keeps its audio, visual score and renderer.';
+  $('source-summary').textContent=painting?'Executable SVG & renderer':'Visual score & synthesis code';
+  $('prompt').placeholder=painting?'Describe the painting, reconstruction or transformation…':'Describe the sound, or change the current piece…';
+  $('log').textContent=painting?'Try “Paint a storm-lit observatory above a black sea, from broad underpainting to electric final accents.”':'Try “A glass creature wakes, takes three curious steps, then dissolves into rain. 12 seconds.”';
+  render();
+}
 function render() {
   busy = state.versions.some(v => ['running','starting','validating','repairing'].includes(v.status));
   $('send').disabled = busy; $('cancel').hidden = !busy;
-  $('send').textContent = projectId ? 'Make next version ↗' : 'Create sound ↗';
-  $('projects').replaceChildren(new Option('New sound', ''), ...state.projects.map(p => new Option(p.title, p.id)));
+  $('send').textContent = projectId ? 'Make next version ↗' : (mode==='painting'?'Create painting ↗':'Create sound ↗');
+  const projects=state.projects.filter(p=>(p.mode||'sound')===mode);
+  $('projects').replaceChildren(new Option(mode==='painting'?'New painting':'New sound', ''), ...projects.map(p => new Option(p.title, p.id)));
   $('projects').value = projectId;
   $('versions').replaceChildren();
   const versions = state.versions.filter(v => v.projectId === projectId);
@@ -43,24 +59,34 @@ function render() {
 async function select(v) {
   const ticket = ++selectionSerial;
   selected = v.id; $('log').textContent = `› ${v.prompt}\n\n${v.log || ''}`; render();
-  $('title').textContent = v.artifacts?.title || 'Rendering your sound…';
+  if ((v.mode||'sound')!==mode) setMode(v.mode||'sound',false);
+  $('title').textContent = v.artifacts?.title || (mode==='painting'?'Painting in progress…':'Rendering your sound…');
   $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = '';
   if (!v.artifacts) return;
-  for (const [key, label] of Object.entries({ audio: 'Download WAV', svg: 'SVG', code: 'Python', notes: 'Notes' })) {
+  const links=mode==='painting'?{image:'PNG',process:'Process',svg:'SVG',code:'Python',notes:'Notes'}:{audio:'Download WAV',svg:'SVG',code:'Python',notes:'Notes'};
+  for (const [key, label] of Object.entries(links)) {
     const a = document.createElement('a'); a.href = `/asset/${v.id}/${key}?download`; a.textContent = label; a.download = ''; $('downloads').append(a);
   }
-  $('score').src = `/asset/${v.id}/svg`; $('score').hidden = false;
+  if(mode==='painting'&&v.sourceImage) for(const [key,label] of Object.entries({source:'Source',analysis:'Measurements',edges:'Edges',palette:'Palette'})){const a=document.createElement('a');a.href=`/asset/${v.id}/${key}?download`;a.textContent=label;a.download='';$('downloads').append(a);}
+  if(mode==='painting'){
+    $('painting').src=`/asset/${v.id}/image`; processView=v.artifacts.process.endsWith('.gif')?'process-image':'process'; $(processView).src=`/asset/${v.id}/process`; $('painting-score').src=`/asset/${v.id}/svg`; $('compare-result').src=`/asset/${v.id}/image`;
+    $('compare-source').src=v.sourceImage?`/asset/${v.id}/source`:'';
+    document.querySelector('[data-view="compare"]').disabled=!v.sourceImage; showPaintingView('final');
+  } else { $('score').src = `/asset/${v.id}/svg`; $('score').hidden = false; }
   const code = await fetch(`/asset/${v.id}/code`).then(r => r.text());
   if (selected !== v.id || ticket !== selectionSerial) return; $('code').textContent = code;
-  const engine = $('editor').contentWindow.PKAudioEditor?.engine;
+  if(mode==='sound'){const engine = $('editor').contentWindow.PKAudioEditor?.engine;
   if (engine) engine.LoadURL(`/asset/${v.id}/audio`);
-  else $('activity').textContent = 'Editor is still loading. Select this version again in a moment.';
+  else $('activity').textContent = 'Editor is still loading. Select this version again in a moment.';}
 }
-$('projects').onchange = () => { projectId = $('projects').value; selected = ''; render(); const v = state.versions.filter(v => v.projectId === projectId).at(-1); if (v) select(v).catch(error); };
-$('new').onclick = () => { projectId = ''; selected = ''; $('title').textContent = 'What does your idea sound like?'; $('log').textContent = ''; $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = ''; $('activity').textContent = 'Ready'; render(); $('prompt').focus(); };
+$('projects').onchange = () => { projectId = $('projects').value; selected = ''; $('image-field').hidden=mode!=='painting'||Boolean(projectId); render(); const v = state.versions.filter(v => v.projectId === projectId).at(-1); if (v) select(v).catch(error); };
+$('new').onclick = () => { setMode(mode); $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = ''; $('activity').textContent = 'Ready'; $('prompt').focus(); };
+$('sound-mode').onclick=()=>setMode('sound'); $('painting-mode').onclick=()=>setMode('painting');
+$('image-input').onchange=()=>{$('image-name').textContent=$('image-input').files[0]?.name||'PNG, JPEG or WebP · 12 MB max';};
+function readImage(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Could not read image'));r.readAsDataURL(file);});}
 $('compose').onsubmit = async e => {
   e.preventDefault(); if (busy) return; $('send').disabled = true;
-  try { const v = await api('generate', { prompt: $('prompt').value, projectId }); projectId = v.projectId; selected = v.id; $('prompt').value = ''; state = await api('state'); await select(state.versions.find(x => x.id === v.id)); }
+  try { const image=mode==='painting'&&!projectId?await readImage($('image-input').files[0]):null; const v = await api('generate', { prompt: $('prompt').value, projectId, mode, ...(image?{image}:{}) }); projectId = v.projectId; selected = v.id; $('prompt').value = ''; $('image-input').value=''; $('image-field').hidden=true; state = await api('state'); await select(state.versions.find(x => x.id === v.id)); }
   catch (e) { error(e); $('send').disabled = busy; }
 };
 $('cancel').onclick = () => api('cancel', {}).catch(error);
@@ -74,7 +100,10 @@ events.addEventListener('state', e => {
 });
 events.addEventListener('log', e => { const v = state.versions.find(v => v.id === selected); if (!v || !['running','starting','validating','repairing'].includes(v.status)) return; $('log').textContent += JSON.parse(e.data).text; $('log').scrollTop = $('log').scrollHeight; });
 events.addEventListener('activity', e => { $('activity').textContent = JSON.parse(e.data).text; });
-state = await api('state'); projectId = state.projects.at(-1)?.id || ''; render();
+function showPaintingView(view){for(const id of ['painting','process','process-image','painting-score','compare'])$(id).hidden=true; const map={final:'painting',process:processView,score:'painting-score',compare:'compare'};$(map[view]).hidden=false;document.querySelectorAll('.painting-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));}
+document.querySelectorAll('.painting-tabs button').forEach(b=>b.onclick=()=>showPaintingView(b.dataset.view));
+$('compare-range').oninput=()=>{$('compare-result').style.clipPath=`inset(0 0 0 ${$('compare-range').value}%)`;};
+state = await api('state'); const latest=state.projects.at(-1); mode=latest?.mode||'sound'; projectId=latest?.id||''; setMode(mode,false);
 function loadLatest() { const v = state.versions.filter(v => v.projectId === projectId).at(-1); if (v) select(v).catch(error); }
 $('editor').addEventListener('load', loadLatest);
 if ($('editor').contentWindow.PKAudioEditor?.engine) loadLatest();
@@ -110,11 +139,27 @@ $('openrouter-model').oninput = () => {
   providerTimer = setTimeout(loadInferenceProviders,400);
 };
 $('inference-provider').onchange = () => { savedInferenceProviders[$('openrouter-model').value.trim()] = $('inference-provider').value; };
-function showProviderFields() {
-  const router = $('provider').value === 'openrouter';
-  $('openai-fields').hidden = router; $('openrouter-fields').hidden = !router;
+// Claude models come from the local Claude Code login via the Agent SDK.
+let claudeRequest = 0;
+async function loadClaudeModels(saved) {
+  const request = ++claudeRequest, select = $('claude-model');
+  if (saved !== undefined) { select.replaceChildren(new Option('Claude Code default','')); if (saved) select.add(new Option(saved,saved)); select.value = saved; }
+  $('claude-status').textContent = 'Loading models from your Claude Code login…';
+  try {
+    const {models} = await api('claude/models');
+    if (request !== claudeRequest) return;
+    const keep = select.value, fallback = models.find(m=>m.id==='default');
+    select.replaceChildren(new Option('Claude Code default'+(fallback?' — '+fallback.description.split(' · ')[0]:''),''), ...models.filter(m=>m.id!=='default').map(m=>new Option(m.name+' — '+m.description.split(' · ')[0],m.id)));
+    if (keep && !models.some(m=>m.id===keep)) select.add(new Option(keep+' (not listed)',keep));
+    select.value = keep;
+    $('claude-status').textContent = 'From your Claude Code login; usage counts against your subscription.';
+  } catch(e) { if (request === claudeRequest) $('claude-status').textContent = 'Model list unavailable: '+e.message; }
 }
-$('provider').onchange = () => { showProviderFields(); if ($('provider').value==='openrouter') void loadInferenceProviders(); };
+function showProviderFields() {
+  const provider = $('provider').value;
+  $('openai-fields').hidden = provider !== 'default'; $('openrouter-fields').hidden = provider !== 'openrouter'; $('claude-fields').hidden = provider !== 'claude';
+}
+$('provider').onchange = () => { showProviderFields(); if ($('provider').value==='openrouter') void loadInferenceProviders(); if ($('provider').value==='claude') void loadClaudeModels(); };
 $('settings-close').onclick = () => $('settings-dialog').close();
 $('settings-dialog').addEventListener('close', () => { $('openrouter-key').value = ''; });
 $('settings').onclick = async () => {
@@ -123,6 +168,7 @@ $('settings').onclick = async () => {
   try {
     const current = await api('settings');
     $('provider').value = current.provider; $('openrouter-model').value = current.openrouterModel || '';
+    void loadClaudeModels(current.claudeModel || '');
     $('openrouter-key').value = ''; $('openrouter-key').placeholder = current.hasOpenRouterKey ? 'Key set for this session — leave blank to keep' : 'Paste API key';
     savedInferenceProviders = {...current.openrouterInferenceProviders};
     showProviderFields();
@@ -144,9 +190,9 @@ $('settings-form').onsubmit = async e => {
   e.preventDefault(); $('settings-save').disabled = true; $('settings-error').textContent = '';
   try {
     const router = $('provider').value === 'openrouter';
-    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined,inferenceProvider:router?(savedInferenceProviders[$('openrouter-model').value.trim()] || ''):undefined});
+    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('provider').value==='claude'?$('claude-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined,inferenceProvider:router?(savedInferenceProviders[$('openrouter-model').value.trim()] || ''):undefined});
     $('settings-dialog').close();
-    $('activity').textContent = 'Next turn: '+(saved.provider==='default'?'Codex · '+(saved.openaiModel||'configured default'):'OpenRouter · '+saved.openrouterModel);
+    $('activity').textContent = 'Next turn: '+(saved.provider==='default'?'Codex · '+(saved.openaiModel||'configured default'):saved.provider==='claude'?'Claude · '+(saved.claudeModel||'Claude Code default'):'OpenRouter · '+saved.openrouterModel);
   } catch(e) { $('settings-error').textContent = e.message; }
   finally { $('settings-save').disabled = false; }
 };

@@ -23,6 +23,13 @@ app.whenReady().then(async()=>{
     if(!router.manualModel||!router.openaiHidden||router.password!=='password')throw new Error('OpenRouter fields failed');
     await new Promise(r=>setTimeout(r,300));
     await fs.writeFile('/tmp/studio-settings-openrouter.png',(await win.webContents.capturePage()).toPNG());
-    console.log(JSON.stringify({catalog:result.models,router},null,2));
+    await js(`document.getElementById('provider').value='claude';document.getElementById('provider').dispatchEvent(new Event('change'));`);
+    for(let i=0;i<120;i++) { if(await js(`document.querySelectorAll('#claude-model option').length>1`))break; await new Promise(r=>setTimeout(r,250)); }
+    const claude=await js(`({visible:!document.getElementById('claude-fields').hidden,routerHidden:document.getElementById('openrouter-fields').hidden,models:[...document.querySelectorAll('#claude-model option')].map(o=>o.value+' | '+o.textContent),status:document.getElementById('claude-status').textContent})`);
+    if(!claude.visible||!claude.routerHidden||claude.models.length<2)throw new Error('Claude fields failed '+JSON.stringify(claude));
+    await js(`document.getElementById('claude-model').click()`);
+    await new Promise(r=>setTimeout(r,300));
+    await fs.writeFile('/tmp/studio-settings-claude.png',(await win.webContents.capturePage()).toPNG());
+    console.log(JSON.stringify({catalog:result.models,router,claude},null,2));
   } finally {await studio.close();win.destroy();await fs.rm(dir,{recursive:true,force:true});app.quit();}
 }).catch(e=>{console.error(e);app.exit(1);});

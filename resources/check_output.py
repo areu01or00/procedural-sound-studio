@@ -8,6 +8,7 @@ import numpy as np
 import soundfile as sf
 
 svg, code, wav = map(Path, sys.argv[1:4])
+workflow = sys.argv[4] if len(sys.argv) > 4 else 'reference'
 issues, warnings = [], []
 report = {'issues': issues, 'warnings': warnings}
 try:
@@ -19,12 +20,13 @@ try:
         raise ValueError('Root must be svg in the SVG namespace')
     local = lambda e: e.tag.rsplit('}', 1)[-1]
     drawable = {'rect','path','polyline','polygon','line','circle','ellipse','image','use'}
-    custom_events, visible_events, embedded_images, timed = [], [], [], []
+    custom_events, visible_events, embedded_images, timed, metadata_nodes = [], [], [], [], []
     def visit(node, semantic=False, hidden=False, definitions=False):
         tag = local(node)
         style = node.get('style', '').replace(' ', '').lower()
         hidden = hidden or node.get('display') == 'none' or node.get('visibility') == 'hidden' or 'display:none' in style or 'visibility:hidden' in style or node.get('opacity') == '0'
         definitions = definitions or tag in ('defs','metadata','clipPath','mask','symbol')
+        if tag == 'metadata': metadata_nodes.append(node)
         semantic = semantic or any(k in node.attrib for k in ('data-role','data-voice','data-t','data-time','data-pitch','data-amplitude','data-energy'))
         if tag in ('script', 'foreignObject') or any(k.lower().startswith('on') for k in node.attrib):
             issues.append('SVG contains executable script/HTML/event handlers; use a passive image score.')
@@ -46,6 +48,13 @@ try:
     visible_tags = [local(n) for n in root.iter() if local(n) in drawable]
     if not visible_tags or (len(visible_tags) == 1 and visible_tags[0] == 'rect' and not visible_events):
         issues.append('SVG has no score graphics beyond a background or metadata.')
+    if workflow == 'generation':
+        if metadata_nodes:
+            issues.append('Original composition stores data in SVG metadata. Move every musical event into visible SVG marks; attributes attached to those marks may carry non-geometric controls.')
+        if embedded_images:
+            warnings.append('Original composition includes an image. Verify it is decorative and that all audible events remain editable visible SVG geometry.')
+        if not visible_events:
+            issues.append('Original composition has no visible semantic event marks. The complete audible arrangement must originate from rendered SVG geometry.')
     view = root.get('viewBox')
     if view:
         box = list(map(float, view.replace(',', ' ').split()))
@@ -57,11 +66,22 @@ try:
             sections.append(float(node.get('t'))+float(node.get('d')))
     if timed and sections and max(t+d for t,d in timed) < max(sections)*.25:
         warnings.append('Visible timed marks cover only an early pattern while sections extend much longer. Verify a clearly labeled motif bank plus repeat schedule, or draw the full arrangement.')
-    report['svg'] = {'customEvents':len(custom_events),'visibleEventMarks':len(visible_events),'images':len(embedded_images)}
+    report['svg'] = {'customEvents':len(custom_events),'visibleEventMarks':len(visible_events),'images':len(embedded_images),'metadataNodes':len(metadata_nodes),'workflow':workflow}
 except Exception as e:
     issues.append('SVG parse/structure error: '+str(e))
 try:
-    ast.parse(code.read_text(), filename=code.name)
+    source = code.read_text()
+    tree = ast.parse(source, filename=code.name)
+    if workflow == 'generation':
+        strings = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        reads_svg = any('score.svg' in s for s in strings)
+        geometry = {'points','d','x','y','x1','x2','y1','y2','cx','cy','r','width','height'}
+        reads_geometry = bool(strings & geometry) or ('.attrib' in source and any(x in source for x in ('polyline','path','rect','circle','line')))
+        report['renderer'] = {'readsScoreSvg':reads_svg,'readsVisibleGeometry':reads_geometry}
+        if not reads_svg:
+            issues.append('Original-composition renderer does not reference score.svg; the saved SVG must be the executable score.')
+        if not reads_geometry:
+            issues.append('Original-composition renderer does not visibly decode SVG geometry. Derive event timing/pitch/gesture from rendered marks rather than a Python-held arrangement.')
 except Exception as e:
     issues.append('Renderer Python syntax error: '+str(e))
 try:

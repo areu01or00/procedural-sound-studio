@@ -26,9 +26,15 @@ async function localReferences(dataDir) {
   return found;
 }
 
-export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
+export async function beforeTurn({ root, dataDir, prompt, history = [], mode = 'sound', sourceImage = null, analysisPath = null }) {
   const read = name => fs.readFile(path.join(root, 'resources', name), 'utf8');
   const workbench = await read('workbench-context.md');
+  if (mode === 'painting') {
+    const context = [await read('painting-context.md')];
+    if (sourceImage) context.push(`Source image: ${sourceImage}\nDeterministic measurements: ${analysisPath}\nInspect analysis.json and its generated palette.svg and edges.png before designing the painting. Preserve source identity only to the degree requested; do not claim visual inspection you did not perform.`);
+    context.push(await read('painting-output-context.md'));
+    return {text:`<studio_painting_context>\n${context.join('\n\n')}\n</studio_painting_context>`,audit:{hook:'beforeTurn',version:1,mode:'painting',workflow:sourceImage?'reference':'generation',sourceImage:Boolean(sourceImage)}};
+  }
   // Current explicit intent wins. Follow-ups inherit the nearest workflow boundary,
   // not every source-related word ever used in the project.
   const classify = text => {
@@ -48,17 +54,24 @@ export async function beforeTurn({ root, dataDir, prompt, history = [] }) {
   if (referenceTask) {
     context.push(await read('reference-context.md'));
     context.push(`Available reconstruction helper: ${path.join(root, 'resources/reference/analyse.py')}\nExisting local reference excerpts (check whether the source matches this task):\n${JSON.stringify(refs, null, 2)}`);
-  }
+  } else context.push(await read('svg-composition-context.md'));
   context.push(await read('output-context.md'));
   return {
     text: `<studio_working_context>\n${context.join('\n\n')}\n</studio_working_context>`,
-    audit: { hook: 'beforeTurn', version: 8, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
+    audit: { hook: 'beforeTurn', version: 9, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
   };
 }
 
-export async function afterTurn({ root, dir, artifacts }) {
+export async function afterTurn({ root, dir, artifacts, workflow = 'generation', mode = 'sound' }) {
+  if (mode === 'painting') {
+    const {stdout}=await run(process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python',[
+      path.join(root,'resources/painting/check_output.py'),
+      ...['svg','code','image','process'].map(k=>path.join(dir,artifacts[k]))
+    ],{timeout:30000,maxBuffer:1024*1024});
+    const report=JSON.parse(stdout); await fs.writeFile(path.join(dir,'output-check.json'),JSON.stringify(report,null,2)); return report;
+  }
   const { stdout } = await run(process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python',
-    [path.join(root, 'resources/check_output.py'), ...['svg','code','audio'].map(k => path.join(dir, artifacts[k]))],
+    [path.join(root, 'resources/check_output.py'), ...['svg','code','audio'].map(k => path.join(dir, artifacts[k])), workflow],
     { timeout: 30000, maxBuffer: 1024 * 1024 });
   const report = JSON.parse(stdout);
   await fs.writeFile(path.join(dir, 'output-check.json'), JSON.stringify(report, null, 2));

@@ -1,7 +1,14 @@
 # Studio
 
-A local sound workshop built around AudioMass, Electron and Codex app-server.
-Describe a sound → Codex writes a visual score and its matching Python synthesizer → Studio validates the WAV and loads it into the editor. Continue the conversation to create another version.
+A local sound and painting workshop built around AudioMass, Electron and Codex app-server. Sound turns an executable SVG score into audio. Painting turns an executable SVG construction into final pixels and a replayable painting process. Continue either conversation to create another preserved version.
+
+## Painting mode
+
+Choose **Painting** in the header. Start from a description alone or attach a PNG, JPEG or WebP. For an attached image, Studio deterministically records dimensions, palette, luminance, contrast, regional values and edge energy before the agent starts; the generated `analysis.json`, `palette.svg` and `edges.png` remain downloadable with the version.
+
+Each painting delivers `painting.svg`, `render.py`, `painting.png`, `process.mp4` or GIF, `notes.md` and `result.json`. The SVG contains the visible, ordered construction; the paired renderer interprets those marks into pixels and cumulative process frames. The UI switches from AudioMass to Final, Process, SVG score and source comparison views. Painting gets a separate provider thread and painting-only hook, so its instructions and lack of mandatory musical web research do not alter Sound mode.
+
+The included [Aurora Study](resources/painting/example/) is a working six-stage example. A generated copy for immediate inspection is under `experiment/painting-demo/`. Its 124 visible marks build a 960×600 image and a 12-second process film. Tests rerender it twice, mutate an SVG color, prove the pixels change, restore the score and validate the package.
 
 ## Run
 
@@ -13,6 +20,8 @@ npm start
 ```
 
 Requires Node.js 22+, a logged-in `codex` CLI on PATH, FFmpeg/ffprobe, and Python with NumPy, SciPy and soundfile. This workspace already has Python at `/home/x/Downloads/venv/bin/python`. Override with `STUDIO_PYTHON=/absolute/path/to/python`; override the Codex executable with `CODEX_BIN`. Model and account come from your existing Codex configuration. Generation consumes that account's usage.
+
+Painting additionally uses Pillow, which is present in the same workspace Python environment.
 
 Browser mode: `npm run dev`, then open `http://127.0.0.1:5055`. Set `PORT` if necessary. Electron chooses an available local port automatically.
 
@@ -134,3 +143,17 @@ Changing the effective provider route restarts the idle Studio-owned app-server 
 The research hook supplies correct whole-result emission and bounded, permission-aware recovery without changing the musical instructions. Actual retrieved excerpts belong in the version's `research/` directory with provenance; notes alone are not proof. Studio retains exposed web-tool completion events in `research-events.jsonl`. Events without source text and hidden nested tool results are not certified retrieval. This adds no audio validation gate or creative restrictions.
 
 Restart Studio to activate. See [the implementation checkpoint](checkpoints/2026-09-13-reliability-fixes.md) for validation, limitations and the correction to the initial audit. Future commits must include a motivation and evidence checkpoint as specified in `AGENTS.md`.
+
+## Visible SVG provenance for original composition (hook v9)
+
+The successful Sky trajectory used temporary Python builders to serialize hundreds of audible pitch ribbons into SVG; its renderer then derived timing and pitch from those visible polylines. Hook v9 restores that causal pattern without prescribing the music or copying Sky. Original compositions may use any procedural builder, SVG vocabulary and bespoke synthesis, but the complete arrangement must end up in visible SVG marks and the final renderer must decode their geometry. Metadata payloads, hidden event schedules and Python-held accompaniment do not satisfy original generation. Attached attributes may carry controls that geometry cannot express cleanly.
+
+Source reconstruction remains separate: its measured complex-STFT coefficients may stay in metadata with an accurate preview. The output checker receives the routed workflow, rejects obvious original-composition container SVGs and checks that the renderer references score.svg plus visible geometry fields. Static inspection cannot prove full semantic equivalence or musical quality; it catches clear provenance regressions and preserves open-ended representation design. Restart Studio to load the hook and server changes.
+
+## Claude provider (Agent SDK)
+
+Settings offers a third provider, **Claude — Claude Code subscription**. Turns run through `@anthropic-ai/claude-agent-sdk` on the local `claude` login, so they use the Claude subscription rather than an API key; `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` are removed from the SDK's environment so billing cannot silently switch. The model dropdown is loaded from that login's live catalog (the same list as Claude Code's `/model`). Set `CLAUDE_BIN` to use a specific Claude Code executable. This is for personal local use; do not distribute Studio with subscription sign-in.
+
+`server/claude.mjs` implements the part of the Codex app-server protocol Studio uses (thread start/resume, turn start/interrupt, approvals, turn notifications), so hooks, the delivery contract, output checks, the single repair turn and the version library are unchanged. A project keeps a separate Claude conversation; "Make next version" resumes the same Claude session.
+
+Differences from the Codex route: Claude uses its own tools. Read/Glob/Grep/WebSearch/WebFetch run without prompts. File edits inside the data directory are auto-accepted, and shell commands run in Claude Code's bubblewrap sandbox (writes limited to the data directory, network restricted). Everything else, including some compound or inline-script shell commands the sandbox will not auto-allow, appears in Studio's approval panel. User/project Claude settings, hooks and plugins are not loaded (`settingSources: []`). AskUserQuestion is disabled. WebSearch/WebFetch results are recorded in `research-events.jsonl`. The log ends each turn with the SDK's step count and API-equivalent cost estimate; that is not a subscription charge. Restart Studio to load the provider.

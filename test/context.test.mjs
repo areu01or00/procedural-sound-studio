@@ -18,12 +18,16 @@ test('context hook retains source workflow across follow-ups and advertises real
     await fs.writeFile(path.join(ref, 'excerpt.json'), JSON.stringify({source_url:'https://youtu.be/example',source_start_seconds:375,source_end_seconds:425,focus_offset_seconds:20,duration_seconds:50}));
     const first = await beforeTurn({root, dataDir:dir, prompt:'Compose an original mechanical waltz'});
     assert.equal(first.audit.referenceWorkflow, false);
+    assert.equal(first.audit.version,9);
+    assert.ok(first.text.includes('visible SVG is the executable score'));
+    assert.ok(first.text.includes('temporary Python score-builder is welcome'));
     assert.ok(!first.text.includes(await fs.readFile(path.join(root,'resources/generation-context.md'),'utf8')));
     assert.ok(!first.text.includes('synthesis-notebook.md'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
     assert.equal(fresh.audit.referenceWorkflow,false);
     const next = await beforeTurn({root, dataDir:dir, prompt:'continue', history:[{prompt:'Mod https://youtu.be/example at 6:35'}]});
     assert.equal(next.audit.referenceWorkflow, true);
+    assert.ok(!next.text.includes('visible SVG is the executable score'));
     assert.ok(next.text.includes(path.join(ref, 'excerpt.wav')));
     assert.ok(next.text.includes('"focusOffset": 20'));
     assert.ok(next.text.includes('analyse.py'));
