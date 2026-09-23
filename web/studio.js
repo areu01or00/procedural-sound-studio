@@ -148,18 +148,34 @@ async function loadClaudeModels(saved) {
   try {
     const {models} = await api('claude/models');
     if (request !== claudeRequest) return;
+    claudeCatalog = models;
     const keep = select.value, fallback = models.find(m=>m.id==='default');
     select.replaceChildren(new Option('Claude Code default'+(fallback?' — '+fallback.description.split(' · ')[0]:''),''), ...models.filter(m=>m.id!=='default').map(m=>new Option(m.name+' — '+m.description.split(' · ')[0],m.id)));
     if (keep && !models.some(m=>m.id===keep)) select.add(new Option(keep+' (not listed)',keep));
     select.value = keep;
     $('claude-status').textContent = 'From your Claude Code login; usage counts against your subscription.';
+    refreshEffort();
   } catch(e) { if (request === claudeRequest) $('claude-status').textContent = 'Model list unavailable: '+e.message; }
 }
+// Effort levels depend on provider and model; keep an unsupported saved value visible rather than dropping it.
+let codexCatalog = [], claudeCatalog = [], savedEffort = '';
+function refreshEffort() {
+  const provider = $('provider').value, select = $('effort'), keep = select.value || savedEffort;
+  let levels = [], fallback = '';
+  if (provider === 'claude') { const m = claudeCatalog.find(x=>x.id===($('claude-model').value || 'default')); levels = m?.efforts || []; }
+  else if (provider === 'openrouter') levels = ['low','medium','high'];
+  else { const m = codexCatalog.find(x=>x.id===$('openai-model').value) || codexCatalog.find(x=>x.isDefault); levels = m?.efforts || []; fallback = m?.defaultEffort || ''; }
+  select.replaceChildren(new Option('Model default'+(fallback?' ('+fallback+')':''),''), ...levels.map(l=>new Option(l,l)));
+  if (keep && !levels.includes(keep)) select.add(new Option(keep+' (not listed for this model)',keep));
+  select.value = keep;
+}
+$('effort').onchange = () => { savedEffort = $('effort').value; };
+$('openai-model').onchange = refreshEffort; $('claude-model').onchange = refreshEffort;
 function showProviderFields() {
   const provider = $('provider').value;
   $('openai-fields').hidden = provider !== 'default'; $('openrouter-fields').hidden = provider !== 'openrouter'; $('claude-fields').hidden = provider !== 'claude';
 }
-$('provider').onchange = () => { showProviderFields(); if ($('provider').value==='openrouter') void loadInferenceProviders(); if ($('provider').value==='claude') void loadClaudeModels(); };
+$('provider').onchange = () => { showProviderFields(); refreshEffort(); if ($('provider').value==='openrouter') void loadInferenceProviders(); if ($('provider').value==='claude') void loadClaudeModels(); };
 $('settings-close').onclick = () => $('settings-dialog').close();
 $('settings-dialog').addEventListener('close', () => { $('openrouter-key').value = ''; });
 $('settings').onclick = async () => {
@@ -169,6 +185,8 @@ $('settings').onclick = async () => {
     const current = await api('settings');
     $('provider').value = current.provider; $('openrouter-model').value = current.openrouterModel || '';
     void loadClaudeModels(current.claudeModel || '');
+    savedEffort = current.effort || ''; $('effort').value = ''; refreshEffort();
+    $('auto-approve').checked = !!current.autoApprove; $('web-research').checked = current.webResearch !== false;
     $('openrouter-key').value = ''; $('openrouter-key').placeholder = current.hasOpenRouterKey ? 'Key set for this session — leave blank to keep' : 'Paste API key';
     savedInferenceProviders = {...current.openrouterInferenceProviders};
     showProviderFields();
@@ -183,6 +201,7 @@ $('settings').onclick = async () => {
       $('openai-model').replaceChildren(new Option('Configured default',''), ...models.map(m=>new Option(m.name+(m.isDefault?' (default)':''),m.id)));
       if(selectedModel && !models.some(m=>m.id===selectedModel)) $('openai-model').add(new Option(selectedModel,selectedModel));
       $('openai-model').value = selectedModel;
+      codexCatalog = models; refreshEffort();
     } catch(e) { $('settings-error').textContent = 'Model list unavailable: '+e.message; }
   } catch(e) { $('settings-error').textContent = e.message; }
 };
@@ -190,9 +209,9 @@ $('settings-form').onsubmit = async e => {
   e.preventDefault(); $('settings-save').disabled = true; $('settings-error').textContent = '';
   try {
     const router = $('provider').value === 'openrouter';
-    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('provider').value==='claude'?$('claude-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined,inferenceProvider:router?(savedInferenceProviders[$('openrouter-model').value.trim()] || ''):undefined});
+    const saved = await api('settings', {provider:$('provider').value,model:router?$('openrouter-model').value:$('provider').value==='claude'?$('claude-model').value:$('openai-model').value,apiKey:router?$('openrouter-key').value:undefined,inferenceProvider:router?(savedInferenceProviders[$('openrouter-model').value.trim()] || ''):undefined,autoApprove:$('auto-approve').checked,webResearch:$('web-research').checked,effort:$('effort').value});
     $('settings-dialog').close();
-    $('activity').textContent = 'Next turn: '+(saved.provider==='default'?'Codex · '+(saved.openaiModel||'configured default'):saved.provider==='claude'?'Claude · '+(saved.claudeModel||'Claude Code default'):'OpenRouter · '+saved.openrouterModel);
+    $('activity').textContent = 'Next turn: '+(saved.provider==='default'?'Codex · '+(saved.openaiModel||'configured default'):saved.provider==='claude'?'Claude · '+(saved.claudeModel||'Claude Code default'):'OpenRouter · '+saved.openrouterModel)+' · effort '+(saved.effort||'default')+' · web '+(saved.webResearch!==false?'on':'off')+(saved.autoApprove?' · auto-approve':'');
   } catch(e) { $('settings-error').textContent = e.message; }
   finally { $('settings-save').disabled = false; }
 };

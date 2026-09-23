@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ClaudeAgent } from '../server/claude.mjs';
 import { createStudio } from '../server/index.mjs';
+import { RENDERER } from './fixtures.mjs';
 
 // Scripted Agent SDK: records query() options and replays SDK messages.
 function scripted(script) {
@@ -83,7 +84,7 @@ class FakeCodex extends EventEmitter {
 async function deliver(dir) {
   const wav = Buffer.alloc(1644); wav.write('RIFF'); wav.writeUInt32LE(1636,4); wav.write('WAVEfmt ',8); wav.writeUInt32LE(16,16); wav.writeUInt16LE(1,20); wav.writeUInt16LE(1,22); wav.writeUInt32LE(8000,24); wav.writeUInt32LE(16000,28); wav.writeUInt16LE(2,32); wav.writeUInt16LE(16,34); wav.write('data',36); wav.writeUInt32LE(1600,40);
   for (let i=0;i<800;i++) wav.writeInt16LE(Math.round(5000*Math.sin(2*Math.PI*440*i/8000)),44+i*2);
-  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path data-role="tone" d="M10 50L90 50" stroke="blue"/></svg>','render.py':'from pathlib import Path\nimport xml.etree.ElementTree as ET\nr=ET.parse(Path(__file__).with_name("score.svg"))\nfor z in r.iter():\n    if z.tag.endswith("path"): gesture=z.get("d")\n','notes.md':'Design notes','result.json':JSON.stringify({title:'Claude test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
+  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0d1117"/><polyline points="10,60 50,45 90,52" data-audible="true" fill="none" stroke="blue"/><path d="M10 70L90 70" data-audible="true" stroke="green"/></svg>','render.py':RENDERER,'notes.md':'Design notes','result.json':JSON.stringify({title:'Claude test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
 }
 
 test('Studio routes a Claude-selected turn through the SDK and validates its delivery', async () => {
@@ -126,4 +127,44 @@ test('Claude model catalog comes from the SDK without a prompt and bracketed IDs
       assert.equal((await r.json()).claudeModel, 'claude-fable-5-1[1m]');
     } finally { await app.close(); }
   } finally { await fs.rm(dir, {recursive:true, force:true}); }
+});
+
+test('auto-approve accepts tool approvals without queueing them and is recorded per version', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-auto-approve-'));
+  const codex = new FakeCodex(); codex.replies = []; codex.respond = (id, result) => codex.replies.push({id, result});
+  const app = await createStudio({dataDir:dir, codex, claude:new ClaudeAgent({run:scripted(async () => []).run})}), url = await app.listen();
+  const post = (route, body) => fetch(url+'/api/'+route, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}).then(r => r.json());
+  const state = () => fetch(url+'/api/state').then(r => r.json());
+  const running = async () => { for (let i = 0; i < 100; i++) { if ((await state()).versions.at(-1)?.status === 'running') return; await new Promise(r => setTimeout(r, 20)); } throw new Error('not running'); };
+  try {
+    assert.equal((await post('settings', {provider:'default', autoApprove:true})).autoApprove, true);
+    await post('generate', {prompt:'A short bell study'}); await running();
+    codex.emit('request', {id:7, method:'item/commandExecution/requestApproval', params:{threadId:'codex-thread', command:'curl https://example.org'}});
+    await new Promise(r => setTimeout(r, 30));
+    assert.deepEqual(codex.replies, [{id:7, result:{decision:'accept'}}]);
+    let s = await state(); assert.equal(s.approvals.length, 0); assert.equal(s.versions.at(-1).autoApprove, true);
+    assert.match(s.versions.at(-1).log, /\[Studio auto-approved\] curl https:\/\/example\.org/);
+    codex.emit('notification', {method:'turn/completed', params:{threadId:'codex-thread', turn:{id:'codex-turn', status:'failed'}}});
+    for (let i = 0; i < 100 && (await state()).versions.at(-1).status === 'running'; i++) await new Promise(r => setTimeout(r, 20));
+    assert.equal((await post('settings', {provider:'default', autoApprove:false})).autoApprove, false);
+    await post('generate', {prompt:'Another bell study'}); await running();
+    codex.emit('request', {id:8, method:'item/commandExecution/requestApproval', params:{threadId:'codex-thread', command:'ls'}});
+    await new Promise(r => setTimeout(r, 30));
+    s = await state(); assert.equal(s.approvals.length, 1); assert.equal(codex.replies.length, 1);
+  } finally { await app.close(); await fs.rm(dir, {recursive:true, force:true}); }
+});
+
+test('selected effort reaches the Claude SDK options and Codex turn/start', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-effort-http-')), codex = new FakeCodex();
+  const sdk = scripted(async () => [init, done]);
+  const app = await createStudio({dataDir:dir, codex, claude:new ClaudeAgent({run:sdk.run})}), url = await app.listen();
+  const post = (route, body) => fetch(url+'/api/'+route, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}).then(r => r.json());
+  const settle = async () => { for (let i = 0; i < 150; i++) { const v = (await (await fetch(url+'/api/state')).json()).versions.at(-1); if (v && !['starting','running','validating','repairing'].includes(v.status)) return v; await new Promise(r => setTimeout(r, 20)); } };
+  try {
+    await post('settings', {provider:'claude', effort:'low'}); await post('generate', {prompt:'A short bell study'}); const v = await settle();
+    assert.equal(sdk.runs[0].options.effort, 'low'); assert.equal(v.effort, 'low');
+    await post('settings', {provider:'default', effort:'high'}); await post('generate', {prompt:'Another bell study'});
+    for (let i = 0; i < 100 && !codex.calls.some(c => c.method === 'turn/start'); i++) await new Promise(r => setTimeout(r, 20));
+    assert.equal(codex.calls.find(c => c.method === 'turn/start').params.effort, 'high');
+  } finally { await app.close(); await fs.rm(dir, {recursive:true, force:true}); }
 });

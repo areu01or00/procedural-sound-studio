@@ -1,12 +1,14 @@
-"""Executable SVG score: original 40-second broken-beat miniature."""
+"""Executable SVG score: original 40-second broken-beat miniature.
+Builds glass_tide.svg only on first run or with --build; otherwise renders the saved score as-is."""
 from pathlib import Path
 import xml.etree.ElementTree as E
 import numpy as np
 from scipy import signal
 from scipy.io import wavfile
-import subprocess, json
+import subprocess, json, sys
 OUT=Path(__file__).resolve().parent/'glass_tide_output'
 OUT.mkdir(parents=True,exist_ok=True)
+svg=OUT/'glass_tide.svg';BUILD='--build' in sys.argv or not svg.exists()
 SR=32000; DUR=40; NS='http://www.w3.org/2000/svg'
 E.register_namespace('',NS)
 r=E.Element('{%s}svg'%NS,viewBox='0 0 1440 800',width='1440',height='800')
@@ -30,7 +32,7 @@ def event(t,d,p,voice,a=.5,pan=0):
     # Each lane shares the same local pitch scale: 1 px = 1 semitone.
     pts=' '.join(f'{110+32*(t+d*j/(len(p)-1)):.4f},{145+idx*73+(60-n):.4f}' for j,n in enumerate(p))
     el('polyline',points=pts,fill='none',stroke=colors[idx],stroke_width=1+a*6,
-       stroke_linecap='round',data_voice=voice,data_pan=pan)
+       stroke_linecap='round',data_voice=voice,data_pan=pan,data_audible='true')
 # Memorable original pentatonic motif with an occasional major seventh.
 motif=[74,78,81,85,83,78,76,73]
 chords=[[50,57,61,66],[47,54,57,61],[43,50,54,59],[45,52,59,61]]
@@ -60,7 +62,8 @@ for bar in range(20):
         for j,o in enumerate([.35,1.1]):event(t+o,.34,chord[1+j]+12,'pluck',.3,(-1)**j*.65)
 for t in [7,23,31]:event(t,.9,[65,94],'riser',.25)
 event(38,1.9,86,'glass',.55,.1)
-svg=OUT/'glass_tide.svg';E.ElementTree(r).write(svg,encoding='utf-8',xml_declaration=True)
+# The renderer below reads the saved score; never overwrite hand/Studio edits unless asked.
+if BUILD:E.ElementTree(r).write(svg,encoding='utf-8',xml_declaration=True)
 
 def render(path):
     rng=np.random.default_rng(27);mix=np.zeros((DUR*SR,2));counts={v:0 for v in voices}

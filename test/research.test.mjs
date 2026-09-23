@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import {researchEvent} from '../server/research.mjs';
 
 test('research wrapper preserves actual string and structured web results', async () => {
-  const guide = await fs.readFile(new URL('../resources/research-context.md', import.meta.url), 'utf8');
+  const guide = await fs.readFile(new URL('../resources/research-codex.md', import.meta.url), 'utf8');
   const code = guide.match(/```js\n([\s\S]*?)\n```/)[1];
   const run = new (Object.getPrototypeOf(async function(){}).constructor)('tools','text',code);
   for (const result of ['Actual retrieved source text', {content:[{type:'text',text:'Source text'}]}, '']) {

@@ -70,6 +70,8 @@ header span { display:none}
 .settings-heading h2 { margin:0; font-size:19px; font-weight:500; }
 .settings-heading button { font-size:20px; padding:1px 9px; }
 #settings-dialog label { display:block; font-size:12px; margin:16px 0 8px; color:#b5c1c7; }
+#settings-dialog .check-row { display:flex; align-items:center; justify-content:flex-start; gap:8px; }
+#settings-dialog .check-row input { width:auto; flex:none; margin:0; }
 #settings-dialog select,#settings-dialog input { width:100%; padding:10px; border:1px solid #43494f; border-radius:4px; background:#17191c; color:inherit; font:inherit; }
 #settings-error { color:#edbca3; font-size:12px; min-height:16px; }
 #settings-save { background:#a5dfcc; color:#17241f; }

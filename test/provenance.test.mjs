@@ -22,7 +22,7 @@ test('generation provenance accepts Sky-style visible geometry and rejects conta
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-provenance-'));
   try{
     await fs.writeFile(path.join(dir,'audio.wav'),wav());
-    await fs.writeFile(path.join(dir,'score.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polyline points="0,60 40,45 80,52" data-voice="bell" fill="none" stroke="blue"/></svg>');
+    await fs.writeFile(path.join(dir,'score.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polyline points="0,60 40,45 80,52" data-audible="true" fill="none" stroke="blue"/></svg>');
     await fs.writeFile(path.join(dir,'render.py'),'import xml.etree.ElementTree as ET\nr=ET.parse("score.svg")\nfor z in r.iter():\n if z.tag.endswith("polyline"): sound=z.get("points")\n');
     let report=await check(dir,'generation');
     assert.deepEqual(report.issues,[]);assert.equal(report.svg.visibleEventMarks,1);

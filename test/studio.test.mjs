@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { createHash } from 'node:crypto';
 import { createStudio, validateResult, safeFile } from '../server/index.mjs';
+import { RENDERER } from './fixtures.mjs';
 
 class FakeCodex extends EventEmitter {
   calls = []; replies = [];
@@ -16,7 +18,7 @@ class FakeCodex extends EventEmitter {
 async function deliver(dir) {
   const wav = Buffer.alloc(1644); wav.write('RIFF'); wav.writeUInt32LE(1636,4); wav.write('WAVEfmt ',8); wav.writeUInt32LE(16,16); wav.writeUInt16LE(1,20); wav.writeUInt16LE(1,22); wav.writeUInt32LE(8000,24); wav.writeUInt32LE(16000,28); wav.writeUInt16LE(2,32); wav.writeUInt16LE(16,34); wav.write('data',36); wav.writeUInt32LE(1600,40);
   for (let i=0;i<800;i++) wav.writeInt16LE(Math.round(5000*Math.sin(2*Math.PI*440*i/8000)),44+i*2);
-  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path data-role="tone" d="M10 50L90 50" stroke="blue"/></svg>','render.py':'from pathlib import Path\nimport xml.etree.ElementTree as ET\nr=ET.parse(Path(__file__).with_name("score.svg"))\nfor z in r.iter():\n    if z.tag.endswith("path"): gesture=z.get("d")\n','notes.md':'Design notes','result.json':JSON.stringify({title:'Test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
+  await Promise.all(Object.entries({'audio.wav':wav,'score.svg':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0d1117"/><polyline points="10,60 50,45 90,52" data-audible="true" fill="none" stroke="blue"/><path d="M10 70L90 70" data-audible="true" stroke="green"/></svg>','render.py':RENDERER,'notes.md':'Design notes','result.json':JSON.stringify({title:'Test',audio:'audio.wav',svg:'score.svg',code:'render.py',notes:'notes.md'})}).map(([name, data]) => fs.writeFile(path.join(dir,name),data)));
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 40));
 async function waitFor(url, status) {
@@ -35,6 +37,10 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
     assert.equal((await post('generate',{prompt:'overlap'})).status,400);
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('<studio_working_context>'));
     assert.equal(await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8'), codex.calls.find(c=>c.method==='turn/start').params.input[0].text.split('\n\n<user_request>')[0]);
+    const fresh = (await (await fetch(url+'/api/state')).json()).versions[0];
+    assert.match(fresh.contextHook.systemPromptHash, /^[a-f0-9]{64}$/);
+    assert.equal(fresh.contextHook.contextHash, createHash('sha256').update(await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8')).digest('hex'));
+    assert.ok((await fs.readFile(path.join(dir, version.id, 'system-prompt.md'), 'utf8')).startsWith('You are the composer'));
     assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('resources/glass_tide_example.py'));
     codex.emit('notification',{method:'item/completed',params:{threadId:'thread-test',item:{type:'webSearch',id:'search-observed',status:'completed',action:{type:'search',query:'glass resonance'}}}});
     codex.emit('request',{id:7,method:'item/commandExecution/requestApproval',params:{command:'echo test'}});
@@ -136,10 +142,11 @@ test('advisory score warnings publish without spending a repair turn', async () 
   try {
     const v=await (await fetch(url+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'Create a patterned texture'})})).json();
     await waitFor(url,'running'); await tick(); await deliver(path.join(dir,v.id));
-    await fs.writeFile(path.join(dir,v.id,'score.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><section t="0" d="90"/><rect data-role="tone" data-t="0" data-d="2" x="10" y="10" width="40" height="20"/><text x="10" y="50">Motif repeated across section</text></svg>');
+    await fs.writeFile(path.join(dir,v.id,'score.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><section t="0" d="90"/><rect data-audible="true" data-t="0" data-d="2" x="10" y="10" width="40" height="20"/><text x="10" y="50">Motif repeated across section</text></svg>');
     codex.emit('notification',{method:'turn/completed',params:{threadId:'thread-test',turn:{id:'turn-test',status:'completed'}}});
     const s=await waitFor(url,'completed');
     assert.ok(s.versions[0].outputCheck.warnings.length);
+    assert.equal(s.versions[0].outputCheck.silence.ran, true);
     assert.ok(s.versions[0].artifacts);
     assert.equal(codex.calls.filter(c=>c.method==='turn/start').length,1);
   } finally { await app.close(); await fs.rm(dir,{recursive:true,force:true}); }

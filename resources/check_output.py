@@ -21,6 +21,7 @@ try:
     local = lambda e: e.tag.rsplit('}', 1)[-1]
     drawable = {'rect','path','polyline','polygon','line','circle','ellipse','image','use'}
     custom_events, visible_events, embedded_images, timed, metadata_nodes = [], [], [], [], []
+    audible_marks = []
     def visit(node, semantic=False, hidden=False, definitions=False):
         tag = local(node)
         style = node.get('style', '').replace(' ', '').lower()
@@ -36,25 +37,29 @@ try:
         if not hidden and not definitions:
             if tag == 'event': custom_events.append(node)
             if tag in drawable and semantic: visible_events.append(node)
+            if node.get('data-audible') not in (None, 'false'): audible_marks.append(node)
             if tag == 'image': embedded_images.append(node)
             if tag in drawable and 'data-t' in node.attrib and 'data-d' in node.attrib:
                 try: timed.append((float(node.get('data-t')), float(node.get('data-d'))))
                 except ValueError: issues.append('Visible event has invalid numeric timing.')
         for child in node: visit(child, semantic, hidden, definitions)
     visit(root)
-    if custom_events and not visible_events and not embedded_images:
+    # Hook v10: for original generation the executable contract is data-audible,
+    # so provenance counts visible audible marks, not attribute-name guesses.
+    marks = audible_marks if workflow == 'generation' else visible_events
+    if custom_events and not marks and not embedded_images:
         issues.append('Musical data uses non-rendering <event> elements with no visible event representation. Draw real SVG marks or an accurate preview; preserve the sound.')
     # Empty or metadata-only documents cannot provide Studio's score display.
     visible_tags = [local(n) for n in root.iter() if local(n) in drawable]
-    if not visible_tags or (len(visible_tags) == 1 and visible_tags[0] == 'rect' and not visible_events):
+    if not visible_tags or (len(visible_tags) == 1 and visible_tags[0] == 'rect' and not marks):
         issues.append('SVG has no score graphics beyond a background or metadata.')
     if workflow == 'generation':
         if metadata_nodes:
             issues.append('Original composition stores data in SVG metadata. Move every musical event into visible SVG marks; attributes attached to those marks may carry non-geometric controls.')
         if embedded_images:
             warnings.append('Original composition includes an image. Verify it is decorative and that all audible events remain editable visible SVG geometry.')
-        if not visible_events:
-            issues.append('Original composition has no visible semantic event marks. The complete audible arrangement must originate from rendered SVG geometry.')
+        if not marks:
+            issues.append('Original composition declares no audible marks (data-audible). Mark every sound-producing SVG element.')
     view = root.get('viewBox')
     if view:
         box = list(map(float, view.replace(',', ' ').split()))
@@ -66,7 +71,7 @@ try:
             sections.append(float(node.get('t'))+float(node.get('d')))
     if timed and sections and max(t+d for t,d in timed) < max(sections)*.25:
         warnings.append('Visible timed marks cover only an early pattern while sections extend much longer. Verify a clearly labeled motif bank plus repeat schedule, or draw the full arrangement.')
-    report['svg'] = {'customEvents':len(custom_events),'visibleEventMarks':len(visible_events),'images':len(embedded_images),'metadataNodes':len(metadata_nodes),'workflow':workflow}
+    report['svg'] = {'customEvents':len(custom_events),'visibleEventMarks':len(marks),'images':len(embedded_images),'metadataNodes':len(metadata_nodes),'workflow':workflow}
 except Exception as e:
     issues.append('SVG parse/structure error: '+str(e))
 try:

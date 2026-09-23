@@ -26,9 +26,8 @@ async function localReferences(dataDir) {
   return found;
 }
 
-export async function beforeTurn({ root, dataDir, prompt, history = [], mode = 'sound', sourceImage = null, analysisPath = null }) {
+export async function beforeTurn({ root, dataDir, prompt, history = [], mode = 'sound', sourceImage = null, analysisPath = null, provider = 'default', web = true }) {
   const read = name => fs.readFile(path.join(root, 'resources', name), 'utf8');
-  const workbench = await read('workbench-context.md');
   if (mode === 'painting') {
     const context = [await read('painting-context.md')];
     if (sourceImage) context.push(`Source image: ${sourceImage}\nDeterministic measurements: ${analysisPath}\nInspect analysis.json and its generated palette.svg and edges.png before designing the painting. Preserve source identity only to the degree requested; do not claim visual inspection you did not perform.`);
@@ -46,8 +45,9 @@ export async function beforeTurn({ root, dataDir, prompt, history = [], mode = '
   const workflow = classify(prompt) || [...history].reverse().map(v => v.contextHook?.workflow || classify(v.prompt || '')).find(Boolean) || 'generation';
   const referenceTask = workflow === 'reference';
   const refs = referenceTask ? await localReferences(dataDir) : [];
-  const context = [workbench];
-  context.push(await read('research-context.md'));
+  // Hook v10: fixed rules (composer, workbench, output) live in the system prompt;
+  // this hook carries only the per-turn facts below.
+  const context = [];
   // A keyword classifier cannot recognize arbitrary song/artist names. Always
   // expose the source workflow; routing only controls eager expansion.
   context.push(`If the request uses an existing recording, including a song named without a URL, read ${path.join(root, 'resources/reference-context.md')} before acting. Resolve and acquire the actual source through your tools. The routing hint is not a determination that the request is original composition. Existing local inputs may be found under ${path.join(dataDir, 'references')}.`);
@@ -55,10 +55,15 @@ export async function beforeTurn({ root, dataDir, prompt, history = [], mode = '
     context.push(await read('reference-context.md'));
     context.push(`Available reconstruction helper: ${path.join(root, 'resources/reference/analyse.py')}\nExisting local reference excerpts (check whether the source matches this task):\n${JSON.stringify(refs, null, 2)}`);
   } else context.push(await read('svg-composition-context.md'));
-  context.push(await read('output-context.md'));
+  // Web research is a per-turn Studio setting; the tools are removed too (settings.mjs, claude.mjs).
+  if (web) {
+    context.push(await read('research-context.md'));
+    // The web-wrapper example is Codex tooling; Claude brings WebSearch/WebFetch.
+    if (provider !== 'claude') context.push(await read('research-codex.md'));
+  } else context.push(await read('research-off.md'));
   return {
     text: `<studio_working_context>\n${context.join('\n\n')}\n</studio_working_context>`,
-    audit: { hook: 'beforeTurn', version: 9, workflow, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
+    audit: { hook: 'beforeTurn', version: 10, workflow, provider, web, referenceWorkflow: referenceTask, localReferenceCount: refs.length }
   };
 }
 
@@ -70,10 +75,29 @@ export async function afterTurn({ root, dir, artifacts, workflow = 'generation',
     ],{timeout:30000,maxBuffer:1024*1024});
     const report=JSON.parse(stdout); await fs.writeFile(path.join(dir,'output-check.json'),JSON.stringify(report,null,2)); return report;
   }
-  const { stdout } = await run(process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python',
+  const python = process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python';
+  const { stdout } = await run(python,
     [path.join(root, 'resources/check_output.py'), ...['svg','code','audio'].map(k => path.join(dir, artifacts[k])), workflow],
     { timeout: 30000, maxBuffer: 1024 * 1024 });
   const report = JSON.parse(stdout);
+  // Executable silence test, sound generation only: strip every data-audible mark
+  // in a temp copy, rerun render.py sandboxed, require finite silence. Duplicate
+  // findings (both scripts can report a missing data-audible contract) keep the
+  // check_output.py wording, which runs first.
+  if (mode === 'sound' && workflow === 'generation') {
+    try {
+      const { stdout: silenceOut } = await run(python,
+        [path.join(root, 'resources/silence_check.py'), dir, artifacts.svg, artifacts.code, artifacts.audio],
+        { timeout: 200000, maxBuffer: 4 * 1024 * 1024 });
+      const silence = JSON.parse(silenceOut);
+      for (const issue of silence.issues || []) if (!report.issues.includes(issue)) report.issues.push(issue);
+      for (const warning of silence.warnings || []) if (!report.warnings.includes(warning)) report.warnings.push(warning);
+      report.silence = silence.silence || {};
+    } catch (e) {
+      report.warnings.push('Silence test could not be completed: ' + String(e.message || e).slice(0, 300));
+      report.silence = { ran: false, error: String(e.message || e).slice(0, 300) };
+    }
+  }
   await fs.writeFile(path.join(dir, 'output-check.json'), JSON.stringify(report, null, 2));
   return report;
 }

@@ -25,7 +25,7 @@ app.whenReady().then(async()=>{
     await fs.writeFile('/tmp/studio-settings-openrouter.png',(await win.webContents.capturePage()).toPNG());
     await js(`document.getElementById('provider').value='claude';document.getElementById('provider').dispatchEvent(new Event('change'));`);
     for(let i=0;i<120;i++) { if(await js(`document.querySelectorAll('#claude-model option').length>1`))break; await new Promise(r=>setTimeout(r,250)); }
-    const claude=await js(`({visible:!document.getElementById('claude-fields').hidden,routerHidden:document.getElementById('openrouter-fields').hidden,models:[...document.querySelectorAll('#claude-model option')].map(o=>o.value+' | '+o.textContent),status:document.getElementById('claude-status').textContent})`);
+    const claude=await js(`({visible:!document.getElementById('claude-fields').hidden,routerHidden:document.getElementById('openrouter-fields').hidden,models:[...document.querySelectorAll('#claude-model option')].map(o=>o.value+' | '+o.textContent),efforts:[...document.querySelectorAll('#effort option')].map(o=>o.value||'(default)'),status:document.getElementById('claude-status').textContent})`);
     if(!claude.visible||!claude.routerHidden||claude.models.length<2)throw new Error('Claude fields failed '+JSON.stringify(claude));
     await js(`document.getElementById('claude-model').click()`);
     await new Promise(r=>setTimeout(r,300));

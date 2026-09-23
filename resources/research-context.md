@@ -1,15 +1,8 @@
 # Research tool handling
 
-Keep the required ad hoc research. This is tool guidance, not a musical recipe.
+Before composing or musically modifying an asset, research online the musical structure, melodic techniques and arrangement relevant to this specific request. This step is required, not optional. Inspect concrete examples and credible explanations; use findings to inform your own choices, not impose a fixed formula. Record source links and briefly explain what informed the work in notes.md. Research about a recording is not a substitute for acquiring its audio when the task depends on that source. If online research is unavailable, report the actual blocker and do not claim it was completed. Pure display repairs and conversational replies do not require musical research.
 
-When calling a web tool through functions.exec, emit its return value directly:
-
-```js
-const result = await tools.web__run({search_query: [{q: "your task-specific query"}], response_length: "short"});
-text(result);
-```
-
-Use the actual available tool name/schema. A return value can be a string or a structured object: do not assume `result.content` exists, and do not discard the result by iterating over `result.content ?? []`. Inspect the emitted value before interpreting it. Empty displayed output from a wrapper is not evidence of an empty search. If that happens, repeat once with direct emission.
+This is tool guidance, not a musical recipe. Use the web tool your provider actually offers; wrapper-specific advice is supplied separately for Codex turns.
 
 If search genuinely fails, try one relevant direct source using available tools. Shell DNS failure inside a network-restricted sandbox does not establish host DNS failure: use the tool's supported escalation/approval mechanism for that failed request when policy permits. Never bypass a refusal or silently grant network access. An unavailable browser does not make other web tools unavailable. Do not repeat identical failed searches indefinitely. If recovery fails or permission is declined, report which path failed and what access/input is missing; do not claim research happened. No substitute source analysis without actual source audio.
 

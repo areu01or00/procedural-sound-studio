@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const run = promisify(execFile);
@@ -89,12 +89,12 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         v.repairAttempts = 1; v.status = 'repairing';
         const text = v.mode === 'painting'
           ? `Studio painting output hook found delivery problems:\n${findings.map(x => '- '+x).join('\n')}\nRepair this same delivery directory: ${dir}. Preserve the artistic decisions. Ensure painting.svg visibly contains the complete ordered brushstroke construction, render.py consumes it, painting.png is the final render, and process.mp4 or process.gif reveals at least three progressive stages. Fix invalid files and write result.json last. This is the single automatic repair pass.`
-          : `Studio output hook found delivery problems:\n${findings.map(x => '- '+x).join('\n')}\nRepair this same delivery directory: ${dir}. Preserve the existing composition and WAV for display-only fixes. Parse and visually inspect the saved SVG; browser-invisible custom event tags are not visible notation. Show the actual arrangement or an explicitly labeled pattern/repeat representation. Do not simplify or replace the music. Fix missing/invalid files and write result.json last. If a necessary input is unavailable, report the blocker rather than inventing a substitute. This is the single automatic repair pass.`;
+          : `Studio output hook found delivery problems:\n${findings.map(x => '- '+x).join('\n')}\nRepair this same delivery directory: ${dir}. Preserve the existing composition and WAV for display-only fixes. Parse and visually inspect the saved SVG; browser-invisible custom event tags are not visible notation. Show the actual arrangement or an explicitly labeled pattern/repeat representation. Do not simplify or replace the music. Fix missing/invalid files and write result.json last. If a necessary input is unavailable, report the blocker rather than inventing a substitute. If the silence test failed, mark every sound-producing element with data-audible and make render.py produce finite silence when those marks are removed. This is the single automatic repair pass.`;
         await fs.writeFile(path.join(dir, 'output-repair.md'), text);
         v.log += '\n[Studio output check] '+findings.join(' ')+'\nRepairing delivery…\n';
         await save(); update(); finishing = false;
         try {
-          const r = await agentFor(v).call('turn/start', { threadId: v.threadId, ...(v.model ? {model:v.model} : {}), input: [{type:'text',text}] });
+          const r = await agentFor(v).call('turn/start', { threadId: v.threadId, ...(v.model ? {model:v.model} : {}), ...(v.effort ? {effort:v.effort} : {}), input: [{type:'text',text}] });
           if (active === v && !v.cancelRequested) v.turnId = r.turn.id;
           else await agentFor(v).call('turn/interrupt', {threadId:v.threadId,turnId:r.turn.id});
         } catch (e) { if (active === v) await finish('failed', e.message); }
@@ -120,6 +120,13 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
       agent.send({ id: m.id, error: { code: -32601, message: `Studio does not support ${m.method}` } });
       broadcast('log', { text: `Unsupported request: ${m.method}` }); return;
     }
+    // Unattended runs: accept tool approvals automatically; questions still need a person.
+    if (kind === 'approval' && settings.publicValue().autoApprove) {
+      agent.respond(m.id, { decision: 'accept' });
+      const text = `\n[Studio auto-approved] ${m.params?.reason || m.params?.command || m.method}\n`;
+      if (active) active.log = (active.log + text).slice(-60000);
+      broadcast('log', { text }); return;
+    }
     approvals.set(String(m.id), { id: m.id, method: m.method, kind, params: m.params }); update();
   });
   agent.on('notification', m => {
@@ -142,9 +149,13 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
     if (m.method === 'turn/completed' && (!active.turnId || !p.turn.id || p.turn.id === active.turnId)) void finish(p.turn.status, p.turn.error?.message);
   });
   }
+  const readResource = name => fs.readFile(path.join(ROOT, 'resources', name), 'utf8');
+  // Hook v10: fixed rules for every sound turn are the system prompt, built once
+  // at startup. Codex thread/resume and the Claude backend both re-send
+  // developerInstructions each turn, so existing projects pick this up too.
   const instructions = {
-    sound: await fs.readFile(path.join(ROOT, 'resources/composer.md'), 'utf8'),
-    painting: await fs.readFile(path.join(ROOT, 'resources/painter.md'), 'utf8')
+    sound: (await Promise.all(['composer.md', 'workbench-context.md', 'output-context.md'].map(readResource))).join('\n\n'),
+    painting: await readResource('painter.md')
   };
   async function generate(body) {
     if (active || settingsBusy) throw new Error('Studio is busy; wait for the current operation');
@@ -162,7 +173,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
     if (!project) { project = { id: randomUUID(), title: body.prompt.trim().slice(0, 65), mode:requestedMode }; state.projects.push(project); }
     project.mode ||= 'sound';
     if (project.mode !== requestedMode) throw new Error(`This is a ${project.mode} project; start a new ${requestedMode} project`);
-    const v = { id: randomUUID(), projectId: project.id, mode:project.mode, prompt: body.prompt, created: new Date().toISOString(), status: 'starting', log: '' };
+    const v = { id: randomUUID(), projectId: project.id, mode:project.mode, prompt: body.prompt, created: new Date().toISOString(), status: 'starting', log: '', autoApprove: !!settings.publicValue().autoApprove };
     active = v; state.versions.push(v);
     const dir = path.join(dataDir, v.id); await fs.mkdir(dir);
     if (sourceUpload) {
@@ -180,7 +191,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
     void (async () => {
       try {
         const choice = await settings.selection(`http://127.0.0.1:${server.address().port}`);
-        v.provider = choice.provider; v.model = choice.model; v.inferenceProvider = choice.inferenceProvider || null;
+        v.provider = choice.provider; v.model = choice.model; v.inferenceProvider = choice.inferenceProvider || null; v.webResearch = choice.webResearch !== false; v.effort = choice.effort || null;
         const agent = agentFor(v); await agent.start();
         project.threads ||= {default:project.threadId};
         const threadKey = v.mode === 'sound' ? choice.provider : `${choice.provider}:painting`;
@@ -192,13 +203,17 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         if (active !== v) return;
         v.threadId = project.threadId; v.status = 'running'; await save(); update();
         const previous = state.versions.filter(x => x.projectId === project.id && x.artifacts).map(x => ({ directory: path.join(dataDir, x.id), title: x.artifacts.title }));
-        const context = await beforeTurn({ root: ROOT, dataDir, prompt: body.prompt, history: state.versions.filter(x => x.projectId === project.id && x !== v), mode:v.mode, sourceImage:v.sourceImage ? path.join(dir,v.sourceImage) : null, analysisPath:v.sourceImage ? path.join(dir,'analysis.json') : null });
+        const context = await beforeTurn({ root: ROOT, dataDir, prompt: body.prompt, history: state.versions.filter(x => x.projectId === project.id && x !== v), mode:v.mode, provider:v.provider, web:v.webResearch, sourceImage:v.sourceImage ? path.join(dir,v.sourceImage) : null, analysisPath:v.sourceImage ? path.join(dir,'analysis.json') : null });
         v.contextHook = context.audit;
+        // Prompt hashes for future benchmarking: exact system prompt and per-turn context.
+        v.contextHook.systemPromptHash = createHash('sha256').update(instructions[v.mode]).digest('hex');
+        v.contextHook.contextHash = createHash('sha256').update(context.text).digest('hex');
         await fs.writeFile(path.join(dir, 'context.md'), context.text);
+        await fs.writeFile(path.join(dir, 'system-prompt.md'), instructions[v.mode]);
         const example = v.mode === 'painting' ? path.join(ROOT,'resources/painting/example') : path.join(ROOT,'resources/glass_tide_example.py');
         const delivery = v.mode === 'painting' ? 'Create painting.svg + paired render.py + painting.png + process.mp4 (or process.gif) + notes.md + result.json.' : 'Create the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.';
         const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nOptional working example: ${example}. Read it if useful; create for the current request.\n${delivery}`;
-        const result = await agent.call('turn/start', { threadId: project.threadId, ...(v.model ? {model:v.model} : {}), input: [{ type: 'text', text }] });
+        const result = await agent.call('turn/start', { threadId: project.threadId, ...(v.model ? {model:v.model} : {}), ...(v.effort ? {effort:v.effort} : {}), input: [{ type: 'text', text }] });
         v.turnId = result.turn.id;
       } catch (e) { if (active === v) await finish('failed', e.message); }
     })();

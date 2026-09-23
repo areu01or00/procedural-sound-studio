@@ -12,9 +12,10 @@ const WEB_TOOLS = new Set(['WebSearch', 'WebFetch']);
 function subscriptionEnv() { const env = {...process.env}; delete env.ANTHROPIC_API_KEY; delete env.ANTHROPIC_AUTH_TOKEN; return env; }
 const executable = () => process.env.CLAUDE_BIN ? {pathToClaudeCodeExecutable:process.env.CLAUDE_BIN} : {};
 
-export function claudeOptions(config, {model, resume, threadId, abort, canUseTool, stderr}) {
+export function claudeOptions(config, {model, effort, resume, threadId, abort, canUseTool, stderr}) {
+  const web = config.webResearch !== false;
   return {
-    cwd: config.cwd, ...(model ? {model} : {}),
+    cwd: config.cwd, ...(model ? {model} : {}), ...(effort ? {effort} : {}),
     systemPrompt: {type:'preset', preset:'claude_code', append:config.developerInstructions || ''},
     ...(resume ? {resume:threadId} : {sessionId:threadId}),
     // Isolation: no user/project settings, hooks or plugins leak into experiments.
@@ -22,9 +23,10 @@ export function claudeOptions(config, {model, resume, threadId, abort, canUseToo
     // Parity with Codex workspace-write + on-request: edits inside the data
     // directory and sandboxed shell run freely; anything else asks the user.
     permissionMode: 'acceptEdits',
-    allowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
-    disallowedTools: ['AskUserQuestion'],
-    sandbox: {enabled:true, autoAllowBashIfSandboxed:true, allowUnsandboxedCommands:true},
+    allowedTools: ['Read', 'Glob', 'Grep', ...(web ? ['WebSearch', 'WebFetch'] : [])],
+    disallowedTools: ['AskUserQuestion', ...(web ? [] : ['WebSearch', 'WebFetch'])],
+    // Web off: shell stays inside the network-blocked sandbox, even when approvals are automatic.
+    sandbox: {enabled:true, autoAllowBashIfSandboxed:true, allowUnsandboxedCommands:web},
     canUseTool, abortController:abort, env:subscriptionEnv(), stderr, ...executable()
   };
 }
@@ -44,7 +46,7 @@ export class ClaudeAgent extends EventEmitter {
     const idle = (async function* () { await new Promise(resolve => abort.signal.addEventListener('abort', resolve)); })();
     const q = this.run({prompt:idle, options:{settingSources:[], abortController:abort, env:subscriptionEnv(), ...executable()}});
     try {
-      this.catalog = (await q.supportedModels()).map(m => ({id:m.value, name:m.displayName, description:m.description || '', resolvedModel:m.resolvedModel || null}));
+      this.catalog = (await q.supportedModels()).map(m => ({id:m.value, name:m.displayName, description:m.description || '', resolvedModel:m.resolvedModel || null, efforts:m.supportedEffortLevels || []}));
     } finally { q.close?.(); abort.abort(); }
     return this.catalog;
   }
@@ -55,13 +57,13 @@ export class ClaudeAgent extends EventEmitter {
     if (method === 'turn/interrupt') { if (this.active?.turnId === params.turnId) this.active.abort.abort(); return {}; }
     throw new Error(`Claude backend does not support ${method}`);
   }
-  turn({threadId, model, input}) {
+  turn({threadId, model, effort, input}) {
     const thread = this.threads.get(threadId);
     if (!thread) throw new Error('Unknown Claude thread');
     if (this.active) throw new Error('A Claude turn is already running');
     const turn = {turnId:randomUUID(), threadId, abort:new AbortController()};
     const prompt = input.filter(i => i.type === 'text').map(i => i.text).join('\n\n');
-    const options = claudeOptions(thread.config, {model:model || thread.config.model, resume:thread.started, threadId, abort:turn.abort,
+    const options = claudeOptions(thread.config, {model:model || thread.config.model, effort, resume:thread.started, threadId, abort:turn.abort,
       canUseTool:(tool, toolInput, {signal, blockedPath}) => this.approve(threadId, tool, toolInput, signal, blockedPath),
       stderr:d => this.emit('diagnostic', String(d))});
     this.active = turn;

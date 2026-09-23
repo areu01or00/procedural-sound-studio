@@ -18,9 +18,9 @@ test('context hook retains source workflow across follow-ups and advertises real
     await fs.writeFile(path.join(ref, 'excerpt.json'), JSON.stringify({source_url:'https://youtu.be/example',source_start_seconds:375,source_end_seconds:425,focus_offset_seconds:20,duration_seconds:50}));
     const first = await beforeTurn({root, dataDir:dir, prompt:'Compose an original mechanical waltz'});
     assert.equal(first.audit.referenceWorkflow, false);
-    assert.equal(first.audit.version,9);
+    assert.equal(first.audit.version,10);
     assert.ok(first.text.includes('visible SVG is the executable score'));
-    assert.ok(first.text.includes('temporary Python score-builder is welcome'));
+    assert.ok(first.text.includes('data-audible'));
     assert.ok(!first.text.includes(await fs.readFile(path.join(root,'resources/generation-context.md'),'utf8')));
     assert.ok(!first.text.includes('synthesis-notebook.md'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
@@ -52,6 +52,30 @@ test('context routing follows the nearest task boundary', async () => {
     assert.ok(!reference.text.includes('# Generation hook:'));
     const recorded = await beforeTurn({root,dataDir:dir,prompt:'continue',history:[source,{prompt:'keep going',contextHook:{workflow:'generation'}}]});
     assert.equal(recorded.audit.workflow,'generation');
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+
+test('fixed rules live in the system prompt and Codex research guidance follows the provider', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-v10-'));
+  try {
+    const read = name => fs.readFile(path.join(root, 'resources', name), 'utf8');
+    const workbench = await read('workbench-context.md'), output = await read('output-context.md');
+    const codexGuide = await read('research-codex.md');
+    const generation = await beforeTurn({root, dataDir:dir, prompt:'Compose an original siren study'});
+    assert.ok(generation.text.includes(await read('svg-composition-context.md')));
+    assert.ok(generation.text.includes(await read('research-context.md')));
+    assert.ok(!generation.text.includes(workbench), 'workbench rules belong to the system prompt');
+    assert.ok(!generation.text.includes(output), 'output rules belong to the system prompt');
+    assert.ok(generation.text.includes(codexGuide), 'default provider is Codex');
+    const routed = await beforeTurn({root, dataDir:dir, prompt:'Compose an original fog horn loop', provider:'openrouter'});
+    assert.ok(routed.text.includes(codexGuide));
+    const claude = await beforeTurn({root, dataDir:dir, prompt:'Compose an original glass choir', provider:'claude'});
+    assert.ok(!claude.text.includes(codexGuide));
+    assert.ok(claude.text.includes(await read('research-context.md')));
+    assert.equal(claude.audit.provider, 'claude');
+    const reference = await beforeTurn({root, dataDir:dir, prompt:'Reconstruct https://youtu.be/example', provider:'claude'});
+    assert.ok(!reference.text.includes(codexGuide));
+    assert.ok(reference.text.includes(await read('reference-context.md')));
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 
