@@ -2,9 +2,13 @@
 
 **Describe a sound. An LLM writes an executable SVG score and the Python synth that plays it. You get a WAV, and a score that moves while it plays.**
 
-<p align="center"><img src="docs/media/sky-stage.gif" alt="The Sky Stays Open: the live score stage lighting up notes as the piece plays" width="100%"></p>
-<p align="center"><img src="docs/media/piano-stage.gif" alt="Where the Water Remembers: a piano piece's score animating during playback" width="100%"></p>
-<p align="center"><b>▶ Watch with sound:</b> <a href="https://github.com/areu01or00/procedural-sound-studio/releases/download/v1.0.0/sky-stays-open-demo.mp4">The Sky Stays Open (47 s)</a> · <a href="https://github.com/areu01or00/procedural-sound-studio/releases/download/v1.0.0/where-the-water-remembers-demo.mp4">Where the Water Remembers (2 min)</a></p>
+<p align="center"><img src="docs/media/sky-stage.gif" alt="The Sky Stays Open: the live score stage lighting up notes as the piece plays" width="100%"><br><sub><b>The Sky Stays Open</b>, composed by GPT-6-Astra (via Codex) · <a href="https://github.com/areu01or00/procedural-sound-studio/releases/download/v1.0.0/sky-stays-open-demo.mp4">▶ watch with sound (47 s)</a></sub></p>
+
+<p align="center"><img src="docs/media/metal-stage.gif" alt="Iron Phrygian: a heavy metal score animating during playback" width="100%"><br><sub><b>Iron Phrygian</b>, composed by Claude Opus 5.5 (via Claude Code) · <a href="https://github.com/areu01or00/procedural-sound-studio/releases/download/v1.0.0/iron-phrygian-demo.mp4">▶ watch with sound (56 s)</a></sub></p>
+
+<p align="center"><img src="docs/media/piano-stage.gif" alt="Where the Water Remembers: a piano piece's score animating during playback" width="100%"><br><sub><b>Where the Water Remembers</b>, composed by Claude (via Claude Code) · <a href="https://github.com/areu01or00/procedural-sound-studio/releases/download/v1.0.0/where-the-water-remembers-demo.mp4">▶ watch with sound (2 min)</a></sub></p>
+
+<p align="center"><sub>Every note, instrument and synthesis routine in these pieces was written by the model; the videos are screen recordings of the app, only trimmed.</sub></p>
 
 LLMs can't output audio, so this app has them *write* it instead. Every note is a visible shape in an SVG file: its position is time, its height is pitch, its attributes are loudness, pan and timbre. A paired `render.py` reads that SVG and synthesizes the sound, using the model's own synthesis or recorded General MIDI instruments. Edit a shape, re-render, and the music changes.
 
