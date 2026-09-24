@@ -7,6 +7,7 @@ header strong { letter-spacing:.12em;font-size:14px}
 header span { font-weight:400;color:#8d969f;margin-left:12px}
 header small { margin-left:auto;color:#9cac9c}
 .mode-switch { display:flex;gap:2px;padding:3px;background:#101215;border:1px solid #343a40;border-radius:6px}
+.mode-switch[hidden] { display:none}
 .mode-switch button,.painting-tabs button { border:0;background:transparent;color:#8d969f;padding:6px 10px}
 .mode-switch button.active,.painting-tabs button.active { background:#30373b;color:#dce8e4}
 button,select,textarea { font:inherit;color:inherit;border:1px solid #43494f;background:#24282d;border-radius:4px;padding:9px 12px}

@@ -25,7 +25,6 @@ Keep talking to revise: every follow-up creates a new version and keeps the old 
 - **Recorded instruments:** `resources/instruments/gm.py` gives renderers 128 General MIDI instruments through FluidSynth, so piano, strings, brass and guitars sound real. The model can still build its own synthesis for anything else.
 - **Provenance check:** after each turn Studio removes every audible mark, re-runs the renderer in a sandbox, and expects silence. That proves the sound really comes from the score. It also checks files, audio and SVG structure, and gives the model one automatic repair pass if something is wrong.
 - **Settings:** provider and model, reasoning effort, web research on/off (off removes the search tools), and auto-approve for unattended runs.
-- **Painting mode:** the same idea for images. An SVG brushstroke construction plus a renderer produce a painting and a process film.
 
 ## Requirements
 

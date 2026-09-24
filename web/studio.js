@@ -110,7 +110,8 @@ events.addEventListener('activity', e => { $('activity').textContent = JSON.pars
 function showPaintingView(view){for(const id of ['painting','process','process-image','painting-score','compare'])$(id).hidden=true; const map={final:'painting',process:processView,score:'painting-score',compare:'compare'};$(map[view]).hidden=false;document.querySelectorAll('.painting-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));}
 document.querySelectorAll('.painting-tabs button').forEach(b=>b.onclick=()=>showPaintingView(b.dataset.view));
 $('compare-range').oninput=()=>{$('compare-result').style.clipPath=`inset(0 0 0 ${$('compare-range').value}%)`;};
-state = await api('state'); const latest=state.projects.at(-1); mode=latest?.mode||'sound'; projectId=latest?.id||''; setMode(mode,false);
+// Painting mode is hidden in this release: always open in sound mode.
+state = await api('state'); const latest=state.projects.filter(p=>(p.mode||'sound')==='sound').at(-1); mode='sound'; projectId=latest?.id||''; setMode(mode,false);
 function loadLatest() { const v = state.versions.filter(v => v.projectId === projectId).at(-1); if (v) select(v).catch(error); }
 $('editor').addEventListener('load', loadLatest);
 if ($('editor').contentWindow.PKAudioEditor?.engine) loadLatest();
