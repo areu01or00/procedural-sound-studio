@@ -96,10 +96,6 @@ npm test                                   # unit and integration tests, no mode
 - Models can't hear. Checks prove the score drives the sound, not that the music is good. You're the judge.
 - Sung vocals and editing individual parts of an existing recording are not supported well.
 
-## How it came about
-
-Studio started as an experiment in whether a general coding model could compose through a representation it can read and edit. `STUDIO.md` and `checkpoints/` hold the development log: what was tried, what failed, and why the harness looks the way it does.
-
 ## Credits and license
 
 - [AudioMass](https://github.com/pkalogiros/AudioMass) by Pantelis Kalogiros (MIT), the audio editor this app is built on. Its original README is in `docs/AUDIOMASS-README.md`.

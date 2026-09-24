@@ -7,7 +7,7 @@ const ROOT = path.join(__dirname, '..'), EX = path.join(ROOT, 'resources/example
 app.whenReady().then(async () => {
   const { PYTHON: PY } = await import('../server/python.mjs');
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-stage-'));
-  const version = (id, title, created) => ({ id, projectId: 'p-' + id, mode: 'sound', prompt: title, created, status: 'completed', log: '', artifacts: { title, type: 'sound', audio: 'audio.wav', svg: 'score.svg', code: 'render.py', notes: 'NOTES.md', duration: 64, sampleRate: 44100, channels: 2 } });
+  const version = (id, title, created) => ({ id, projectId: 'p-' + id, mode: 'sound', prompt: title, created, status: 'completed', log: '', artifacts: { title, type: 'sound', audio: 'audio.wav', svg: 'score.svg', code: 'render.py', notes: 'render.py', duration: 64, sampleRate: 44100, channels: 2 } });
   const sky = path.join(dir, 'sky'); await fs.cp(EX, sky, { recursive: true });
   execFileSync(PY, [path.join(sky, 'render.py')]);
   const hostile = path.join(dir, 'hostile'); await fs.cp(sky, hostile, { recursive: true });

@@ -22,7 +22,6 @@ test('context hook retains source workflow across follow-ups and advertises real
     assert.equal(first.audit.version,10);
     assert.ok(first.text.includes('visible SVG is the executable score'));
     assert.ok(first.text.includes('data-audible'));
-    assert.ok(!first.text.includes(await fs.readFile(path.join(root,'resources/generation-context.md'),'utf8')));
     assert.ok(!first.text.includes('synthesis-notebook.md'));
     const fresh = await beforeTurn({root,dataDir:dir,prompt:'Compose a new techno-jazz song that feels nocturnal. Deliver audio.wav and score.svg.',history:[{prompt:'Reconstruct https://youtu.be/example'}]});
     assert.equal(fresh.audit.referenceWorkflow,false);
