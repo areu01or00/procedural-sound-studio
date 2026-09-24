@@ -14,5 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.280"
-  }
+  },
+  "description": "Describe a sound; an LLM writes an executable SVG score and the Python synth that plays it. Desktop studio built on AudioMass.",
+  "license": "MIT"
 }

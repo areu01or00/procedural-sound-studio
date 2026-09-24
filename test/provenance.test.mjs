@@ -6,8 +6,9 @@ import path from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
+import { PYTHON } from '../server/python.mjs';
 const run=promisify(execFile),root=fileURLToPath(new URL('..',import.meta.url));
-const python=process.env.STUDIO_PYTHON||'/home/x/Downloads/venv/bin/python';
+const python=PYTHON;
 
 function wav(){
   const b=Buffer.alloc(1644);b.write('RIFF');b.writeUInt32LE(1636,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);

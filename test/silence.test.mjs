@@ -8,9 +8,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { RENDERER, wav } from './fixtures.mjs';
+import { PYTHON } from '../server/python.mjs';
 
 const run = promisify(execFile), root = fileURLToPath(new URL('..', import.meta.url));
-const python = process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python';
+const python = PYTHON;
 const SCORE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0d1117"/><polyline points="10,60 50,45 90,52" data-audible="true" fill="none"/></svg>';
 
 async function delivery(renderer = RENDERER, score = SCORE) {

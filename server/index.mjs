@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { PYTHON } from './python.mjs';
 const run = promisify(execFile);
 import { Codex } from './codex.mjs';
 import { ClaudeAgent } from './claude.mjs';
@@ -178,7 +179,7 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
     const dir = path.join(dataDir, v.id); await fs.mkdir(dir);
     if (sourceUpload) {
       v.sourceImage='source'+sourceUpload.ext; await fs.writeFile(path.join(dir,v.sourceImage),sourceUpload.bytes);
-      await run(process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python',[path.join(ROOT,'resources/painting/analyse.py'),path.join(dir,v.sourceImage),dir],{timeout:30000,maxBuffer:1024*1024});
+      await run(PYTHON,[path.join(ROOT,'resources/painting/analyse.py'),path.join(dir,v.sourceImage),dir],{timeout:30000,maxBuffer:1024*1024});
       project.sourceVersion=v.id;
     } else if (v.mode === 'painting' && project.sourceVersion) {
       const prior=state.versions.find(x=>x.id===project.sourceVersion), priorDir=path.join(dataDir,project.sourceVersion);
@@ -210,9 +211,11 @@ export async function createStudio({ dataDir = path.join(ROOT, '.studio'), codex
         v.contextHook.contextHash = createHash('sha256').update(context.text).digest('hex');
         await fs.writeFile(path.join(dir, 'context.md'), context.text);
         await fs.writeFile(path.join(dir, 'system-prompt.md'), instructions[v.mode]);
-        const example = v.mode === 'painting' ? path.join(ROOT,'resources/painting/example') : path.join(ROOT,'resources/glass_tide_example.py');
+        // Sound turns get no example piece: a labelled favourite acted as a style prescription (checkpoint 2026-09-23).
+        const example = path.join(ROOT,'resources/painting/example');
+        const instruments = v.mode === 'painting' ? '' : `\nRecorded instruments: ${path.join(ROOT,'resources/instruments/gm.py')} (read its docstring; copy it next to render.py and import it).`;
         const delivery = v.mode === 'painting' ? 'Create painting.svg + paired render.py + painting.png + process.mp4 (or process.gif) + notes.md + result.json.' : 'Create the complete SVG + paired renderer + WAV + notes + result.json in the delivery directory.';
-        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python'}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\nOptional working example: ${example}. Read it if useful; create for the current request.\n${delivery}`;
+        const text = `${context.text}\n\n<user_request>\n${body.prompt}\n</user_request>\n\nDelivery directory: ${dir}\nPython interpreter: ${PYTHON}\nPrior completed versions (read as references; do not overwrite): ${JSON.stringify(previous)}\n${v.mode === 'painting' ? `Optional working example: ${example}. Read it if useful; create for the current request.\n` : ''}${instruments.trimStart()}\n${delivery}`;
         const result = await agent.call('turn/start', { threadId: project.threadId, ...(v.model ? {model:v.model} : {}), ...(v.effort ? {effort:v.effort} : {}), input: [{ type: 'text', text }] });
         v.turnId = result.turn.id;
       } catch (e) { if (active === v) await finish('failed', e.message); }

@@ -7,8 +7,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { beforeTurn } from '../server/hooks.mjs';
+import { PYTHON } from '../server/python.mjs';
 const run = promisify(execFile), root = fileURLToPath(new URL('..', import.meta.url));
-const python = process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python';
+const python = PYTHON;
 
 test('context hook retains source workflow across follow-ups and advertises real local excerpts', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-context-'));

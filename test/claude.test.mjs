@@ -103,7 +103,7 @@ test('Studio routes a Claude-selected turn through the SDK and validates its del
     const v = state.versions.at(-1);
     assert.equal(v.status, 'completed', v.error); assert.equal(v.provider, 'claude'); assert.equal(v.model, 'claude-opus-5-5');
     assert.equal(v.artifacts.title, 'Claude test');
-    assert.equal(sdk.runs[0].options.cwd, dir); assert.match(sdk.runs[0].prompt, /<user_request>\nA short bell study/);
+    assert.equal(sdk.runs[0].options.cwd, dir); assert.match(sdk.runs[0].prompt, /<user_request>\nA short bell study/); assert.match(sdk.runs[0].prompt, /Recorded instruments: .*resources\/instruments\/gm\.py/);
     assert.ok(sdk.runs[0].options.systemPrompt.append.length > 100);
     assert.ok(!codex.calls.some(c => c.method.startsWith('turn/')));
     assert.ok(state.projects[0].threads.claude);

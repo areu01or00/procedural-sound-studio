@@ -8,7 +8,8 @@ import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {beforeTurn,afterTurn} from '../server/hooks.mjs';
 import {validateResult} from '../server/index.mjs';
-const run=promisify(execFile), root=fileURLToPath(new URL('..',import.meta.url)), python=process.env.STUDIO_PYTHON||'/home/x/Downloads/venv/bin/python';
+import { PYTHON } from '../server/python.mjs';
+const run=promisify(execFile), root=fileURLToPath(new URL('..',import.meta.url)), python=PYTHON;
 
 test('painting context is isolated from musical research and source images are measured',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-painting-analysis-'));

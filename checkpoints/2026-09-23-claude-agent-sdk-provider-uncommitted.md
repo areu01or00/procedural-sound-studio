@@ -16,7 +16,7 @@ The user is re-testing newer models in this harness and wants Claude alongside C
 
 ## Environment repair found during this work
 
-The migration left Studio's default interpreter `/home/x/Downloads/venv/bin/python` missing, so 9/19 existing tests failed before any change and every provider would fail at render time. Recreated that venv with uv on Python 3.14 with numpy 2.5.3, scipy 1.18.1, soundfile 0.14.0, pillow 12.3.0 and matplotlib. Baseline then passed 19/19.
+The migration left Studio's default interpreter `<local venv>/bin/python` missing, so 9/19 existing tests failed before any change and every provider would fail at render time. Recreated that venv with uv on Python 3.14 with numpy 2.5.3, scipy 1.18.1, soundfile 0.14.0, pillow 12.3.0 and matplotlib. Baseline then passed 19/19.
 
 ## Validation
 

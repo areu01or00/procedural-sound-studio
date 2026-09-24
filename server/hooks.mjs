@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { PYTHON } from './python.mjs';
 const run = promisify(execFile);
 
 async function localReferences(dataDir) {
@@ -69,13 +70,13 @@ export async function beforeTurn({ root, dataDir, prompt, history = [], mode = '
 
 export async function afterTurn({ root, dir, artifacts, workflow = 'generation', mode = 'sound' }) {
   if (mode === 'painting') {
-    const {stdout}=await run(process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python',[
+    const {stdout}=await run(PYTHON,[
       path.join(root,'resources/painting/check_output.py'),
       ...['svg','code','image','process'].map(k=>path.join(dir,artifacts[k]))
     ],{timeout:30000,maxBuffer:1024*1024});
     const report=JSON.parse(stdout); await fs.writeFile(path.join(dir,'output-check.json'),JSON.stringify(report,null,2)); return report;
   }
-  const python = process.env.STUDIO_PYTHON || '/home/x/Downloads/venv/bin/python';
+  const python = PYTHON;
   const { stdout } = await run(python,
     [path.join(root, 'resources/check_output.py'), ...['svg','code','audio'].map(k => path.join(dir, artifacts[k])), workflow],
     { timeout: 30000, maxBuffer: 1024 * 1024 });

@@ -41,7 +41,7 @@ test('version lifecycle, approvals, revisions, restart and file boundaries', asy
     assert.match(fresh.contextHook.systemPromptHash, /^[a-f0-9]{64}$/);
     assert.equal(fresh.contextHook.contextHash, createHash('sha256').update(await fs.readFile(path.join(dir, version.id, 'context.md'), 'utf8')).digest('hex'));
     assert.ok((await fs.readFile(path.join(dir, version.id, 'system-prompt.md'), 'utf8')).startsWith('You are the composer'));
-    assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('resources/glass_tide_example.py'));
+    assert.ok(codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('Recorded instruments:') && !codex.calls.find(c=>c.method==='turn/start').params.input[0].text.includes('sky-stays-open'));
     codex.emit('notification',{method:'item/completed',params:{threadId:'thread-test',item:{type:'webSearch',id:'search-observed',status:'completed',action:{type:'search',query:'glass resonance'}}}});
     codex.emit('request',{id:7,method:'item/commandExecution/requestApproval',params:{command:'echo test'}});
     assert.equal((await (await fetch(url+'/api/state')).json()).approvals.length,1);

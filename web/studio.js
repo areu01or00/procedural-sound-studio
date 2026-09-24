@@ -1,4 +1,11 @@
+import { createStage } from './score-stage.js';
 const $ = id => document.getElementById(id);
+// The live score follows AudioMass's own playback clock, so either play button drives it.
+const editorClock = () => {
+  const w = $('editor').contentWindow?.PKAudioEditor?.engine?.wavesurfer; if (!w || !w.getDuration?.()) return null;
+  return { t:w.getCurrentTime(), playing:w.isPlaying(), duration:w.getDuration(), toggle:() => w.playPause(), seek:t => w.seekTo(Math.min(1, t / w.getDuration())) };
+};
+const stage = createStage({ host:$('stage'), view:$('stage-view'), playButton:$('stage-play'), timeLabel:$('stage-time'), hint:$('stage-hint'), zoomButton:$('stage-zoom'), fullButton:$('stage-full'), clock:editorClock });
 let state = { projects: [], versions: [] }, projectId = '', selected = '', busy = false, selectionSerial = 0, mode = 'sound', processView = 'process';
 async function api(route, body) {
   const r = await fetch('/api/' + route, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -12,7 +19,7 @@ function setMode(next, reset=true) {
   $('sound-mode').classList.toggle('active',!painting); $('painting-mode').classList.toggle('active',painting);
   $('workshop').textContent=painting?'/ PAINTING WORKSHOP':'/ SOUND WORKSHOP';
   $('new').textContent=painting?'New painting':'New sound'; $('image-field').hidden=!painting || Boolean(projectId);
-  $('editor').hidden=painting; $('painting-view').hidden=!painting;
+  $('editor').hidden=painting; $('painting-view').hidden=!painting; if(painting) stage.clear();
   $('title').textContent=painting?'What should the canvas become?':'What does your idea sound like?';
   $('compose-hint').textContent=painting?'Describe an image, attach a source, then develop it through conversation.':'Describe a sound. Develop it through conversation.';
   $('collection-hint').textContent=painting?'Each version keeps its final image, executable SVG, renderer and process film.':'Each version keeps its audio, visual score and renderer.';
@@ -61,7 +68,7 @@ async function select(v) {
   selected = v.id; $('log').textContent = `› ${v.prompt}\n\n${v.log || ''}`; render();
   if ((v.mode||'sound')!==mode) setMode(v.mode||'sound',false);
   $('title').textContent = v.artifacts?.title || (mode==='painting'?'Painting in progress…':'Rendering your sound…');
-  $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = '';
+  $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = ''; stage.clear();
   if (!v.artifacts) return;
   const links=mode==='painting'?{image:'PNG',process:'Process',svg:'SVG',code:'Python',notes:'Notes'}:{audio:'Download WAV',svg:'SVG',code:'Python',notes:'Notes'};
   for (const [key, label] of Object.entries(links)) {
@@ -72,7 +79,7 @@ async function select(v) {
     $('painting').src=`/asset/${v.id}/image`; processView=v.artifacts.process.endsWith('.gif')?'process-image':'process'; $(processView).src=`/asset/${v.id}/process`; $('painting-score').src=`/asset/${v.id}/svg`; $('compare-result').src=`/asset/${v.id}/image`;
     $('compare-source').src=v.sourceImage?`/asset/${v.id}/source`:'';
     document.querySelector('[data-view="compare"]').disabled=!v.sourceImage; showPaintingView('final');
-  } else { $('score').src = `/asset/${v.id}/svg`; $('score').hidden = false; }
+  } else { $('score').src = `/asset/${v.id}/svg`; $('score').hidden = false; void stage.load(`/asset/${v.id}/svg`); }
   const code = await fetch(`/asset/${v.id}/code`).then(r => r.text());
   if (selected !== v.id || ticket !== selectionSerial) return; $('code').textContent = code;
   if(mode==='sound'){const engine = $('editor').contentWindow.PKAudioEditor?.engine;
@@ -80,7 +87,7 @@ async function select(v) {
   else $('activity').textContent = 'Editor is still loading. Select this version again in a moment.';}
 }
 $('projects').onchange = () => { projectId = $('projects').value; selected = ''; $('image-field').hidden=mode!=='painting'||Boolean(projectId); render(); const v = state.versions.filter(v => v.projectId === projectId).at(-1); if (v) select(v).catch(error); };
-$('new').onclick = () => { setMode(mode); $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = ''; $('activity').textContent = 'Ready'; $('prompt').focus(); };
+$('new').onclick = () => { setMode(mode); stage.clear(); $('downloads').replaceChildren(); $('score').hidden = true; $('code').textContent = ''; $('activity').textContent = 'Ready'; $('prompt').focus(); };
 $('sound-mode').onclick=()=>setMode('sound'); $('painting-mode').onclick=()=>setMode('painting');
 $('image-input').onchange=()=>{$('image-name').textContent=$('image-input').files[0]?.name||'PNG, JPEG or WebP · 12 MB max';};
 function readImage(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Could not read image'));r.readAsDataURL(file);});}

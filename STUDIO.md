@@ -19,7 +19,7 @@ npm install
 npm start
 ```
 
-Requires Node.js 22+, a logged-in `codex` CLI on PATH, FFmpeg/ffprobe, and Python with NumPy, SciPy and soundfile. This workspace already has Python at `/home/x/Downloads/venv/bin/python`. Override with `STUDIO_PYTHON=/absolute/path/to/python`; override the Codex executable with `CODEX_BIN`. Model and account come from your existing Codex configuration. Generation consumes that account's usage.
+Requires Node.js 22+, a logged-in `codex` CLI on PATH, FFmpeg/ffprobe, and Python with NumPy, SciPy and soundfile. Studio uses `STUDIO_PYTHON` if set, else `.venv/bin/python` in this directory, else `python3`; override the Codex executable with `CODEX_BIN`. Model and account come from your existing Codex configuration. Generation consumes that account's usage.
 
 Painting additionally uses Pillow, which is present in the same workspace Python environment.
 

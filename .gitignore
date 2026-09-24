@@ -7,3 +7,6 @@ node_modules/
 .studio/
 
 __pycache__/
+
+.venv
+resources/examples/*/audio.wav

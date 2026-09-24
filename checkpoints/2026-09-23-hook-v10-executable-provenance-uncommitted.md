@@ -40,7 +40,7 @@ Hook v9 stated a causal rule in `resources/svg-composition-context.md` ("deletin
 ## Rollback
 
 ```sh
-cd /home/x/Downloads/medical_agent/studio
+cd <repo>
 git -c core.fileMode=false restore resources/check_output.py resources/composer.md \
   resources/output-context.md resources/research-context.md resources/svg-composition-context.md \
   server/hooks.mjs server/index.mjs test/claude.test.mjs test/context.test.mjs \
