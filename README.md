@@ -6,6 +6,8 @@ LLMs can't output audio, so this app has them *write* it instead. Every note is 
 
 It's a desktop app (Electron) built around the [AudioMass](https://github.com/pkalogiros/AudioMass) web audio editor, driven by coding agents you already have: **Codex**, **Claude Code**, or any model on **OpenRouter**.
 
+> **Linux only for now.** macOS and Windows aren't supported yet.
+
 ## What you get per request
 
 Each version is saved in its own folder:
@@ -32,7 +34,7 @@ Keep talking to revise: every follow-up creates a new version and keeps the old 
 - **Python 3.10+** with `numpy scipy soundfile pillow matplotlib` (see `requirements.txt`)
 - **FFmpeg** (`ffprobe` is used to validate outputs)
 - **FluidSynth** plus the **FluidR3_GM** soundfont, for recorded instruments
-- **bubblewrap** (`bwrap`, Linux) for the sandboxed provenance check. Without it the check is skipped with a warning; generated code is never run unsandboxed.
+- **bubblewrap** (`bwrap`) for the sandboxed provenance check. Without it the check is skipped with a warning; generated code is never run unsandboxed.
 - At least one provider, using **your own** login or key (see below)
 
 Install the system packages:
@@ -42,8 +44,6 @@ Install the system packages:
 sudo pacman -S nodejs npm python ffmpeg fluidsynth soundfont-fluid bubblewrap
 # Debian / Ubuntu
 sudo apt install nodejs npm python3-venv ffmpeg fluidsynth fluid-soundfont-gm bubblewrap
-# macOS (the provenance check is skipped: no bubblewrap)
-brew install node python ffmpeg fluid-synth   # then download FluidR3_GM.sf2 and set STUDIO_SOUNDFONT
 ```
 
 ## Install and run
